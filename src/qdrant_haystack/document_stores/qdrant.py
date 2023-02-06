@@ -1,5 +1,4 @@
 import logging
-import uuid
 from typing import Optional, Dict, List, Union, Generator, Any, cast
 
 import numpy as np
@@ -33,7 +32,6 @@ class QdrantDocumentStore(BaseDocumentStore):
         "dot_product": rest.Distance.DOT,
         "l2": rest.Distance.EUCLID,
     }
-    UUID_NAMESPACE = uuid.UUID("3896d314-1e95-4a3a-b45a-945f9f0b541d")
 
     def __init__(
         self,
@@ -263,8 +261,6 @@ class QdrantDocumentStore(BaseDocumentStore):
             index=index,
             duplicate_documents=duplicate_documents,
         )
-        # TODO: make sure all the documents have the embeddings, otherwise create fake ones
-        # TODO: convert Document instances to Qdrant batches
 
         batched_documents = get_batches_from_generator(document_objects, batch_size)
         with tqdm(
