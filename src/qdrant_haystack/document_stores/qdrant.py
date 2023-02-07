@@ -113,18 +113,15 @@ class QdrantDocumentStore(BaseDocumentStore):
         batch_size: int = 10_000,
         headers: Optional[Dict[str, str]] = None,
     ) -> Generator[Document, None, None]:
-        if filters:
-            # TODO: support filters
-            raise ValueError("Filters are not supported by QdrantDocumentStore yet")
-
         index = index or self.index
+        qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(filters)
 
         next_offset = None
         continue_scroll = True
         while continue_scroll:
             records, next_offset = self.client.scroll(
                 collection_name=index,
-                # TODO: use scroll_filter
+                scroll_filter=qdrant_filters,
                 limit=batch_size,
                 offset=next_offset,
                 with_payload=True,
@@ -187,18 +184,13 @@ class QdrantDocumentStore(BaseDocumentStore):
         only_documents_without_embedding: bool = False,
         headers: Optional[Dict[str, str]] = None,
     ) -> int:
-        if filters:
-            # TODO: support filters
-            raise ValueError("Filters are not supported by QdrantDocumentStore yet")
-
         index = index or self.index
+        qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(filters)
 
-        # TODO: remove below
         response = self.client.count(
             collection_name=index,
-            # TODO: use count_filters
+            count_filter=qdrant_filters,
         )
-
         return response.count
 
     def query_by_embedding(
@@ -211,23 +203,22 @@ class QdrantDocumentStore(BaseDocumentStore):
         headers: Optional[Dict[str, str]] = None,
         scale_score: bool = True,
     ) -> List[Document]:
-        if filters:
-            # TODO: support filters
-            raise ValueError("Filters are not supported by QdrantDocumentStore yet")
-
         index = index or self.index
+        qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(filters)
 
         points = self.client.search(
             collection_name=index,
             query_vector=cast(list, query_emb.tolist()),
-            # TODO: use query_filter
+            query_filter=qdrant_filters,
             limit=top_k,
             with_vectors=return_embedding or True,
         )
 
-        # TODO: use scale_score
-
-        return [self.qdrant_to_haystack.point_to_document(point) for point in points]
+        results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
+        if scale_score:
+            for document in results:
+                document.score = self.scale_to_unit_interval(document.score, self.similarity)
+        return results
 
     def write_documents(
         self,
@@ -291,7 +282,6 @@ class QdrantDocumentStore(BaseDocumentStore):
         headers: Optional[Dict[str, str]] = None,
     ):
         """
-
         :param retriever:
         :param index:
         :param update_existing_embeddings: Not used by QdrantDocumentStore, as all the points
@@ -301,10 +291,6 @@ class QdrantDocumentStore(BaseDocumentStore):
         :param headers:
         :return:
         """
-        if filters:
-            # TODO: support filters
-            raise ValueError("Filters are not supported by QdrantDocumentStore yet")
-
         index = index or self.index
 
         document_count = self.get_document_count(index=index, filters=filters)
@@ -376,16 +362,15 @@ class QdrantDocumentStore(BaseDocumentStore):
         filters: Optional[FilterType] = None,
         headers: Optional[Dict[str, str]] = None,
     ):
-        if filters:
-            # TODO: support filters
-            raise ValueError("Filters are not supported by QdrantDocumentStore yet")
-
+        index = index or self.index
         qdrant_ids = [self.haystack_to_qdrant_converter.convert_id(id) for id in ids]
+        qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(
+            filters, qdrant_ids
+        )
 
         self.client.delete(
             collection_name=index,
-            points_selector=qdrant_ids,
-            # TODO: use filters
+            points_selector=qdrant_filters,
         )
 
     def delete_all_documents(
@@ -394,14 +379,12 @@ class QdrantDocumentStore(BaseDocumentStore):
         filters: Optional[FilterType] = None,
         headers: Optional[Dict[str, str]] = None,
     ):
-        if filters:
-            # TODO: support filters
-            raise ValueError("Filters are not supported by QdrantDocumentStore yet")
+        index = index or self.index
+        qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(filters)
 
         self.client.delete(
             collection_name=index,
-            points_selector=rest.Filter(),
-            # TODO: use filters
+            points_selector=qdrant_filters,
         )
 
     def delete_index(self, index: str):
@@ -413,16 +396,12 @@ class QdrantDocumentStore(BaseDocumentStore):
         filters: Optional[FilterType] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> List[Label]:
-        if filters:
-            # TODO: support filters
-            raise ValueError("Filters are not supported by QdrantDocumentStore yet")
-
-        raise NotImplementedError
+        raise NotImplementedError("Qdrant does not support labels yet")
 
     def get_label_count(
         self, index: Optional[str] = None, headers: Optional[Dict[str, str]] = None
     ) -> int:
-        raise NotImplementedError
+        raise NotImplementedError("Qdrant does not support labels yet")
 
     def write_labels(
         self,
@@ -430,7 +409,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         index: Optional[str] = None,
         headers: Optional[Dict[str, str]] = None,
     ):
-        raise NotImplementedError
+        raise NotImplementedError("Qdrant does not support labels yet")
 
     def delete_labels(
         self,
@@ -439,11 +418,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         filters: Optional[FilterType] = None,
         headers: Optional[Dict[str, str]] = None,
     ):
-        if filters:
-            # TODO: support filters
-            raise ValueError("Filters are not supported by QdrantDocumentStore yet")
-
-        raise NotImplementedError
+        raise NotImplementedError("Qdrant does not support labels yet")
 
     def _create_document_field_map(self) -> Dict:
         return {

@@ -1,9 +1,11 @@
 import uuid
-from typing import Union, List, Dict
+from typing import Union, List, Dict, Optional
 
 from haystack import Document
 from qdrant_client.http import models as rest
 import numpy as np
+
+from qdrant_haystack.document_stores.filters import QdrantFilterConverter
 
 
 class HaystackToQdrant:
@@ -17,6 +19,7 @@ class HaystackToQdrant:
         self.embedding_field = embedding_field
         self.embedding_dim = embedding_dim
         self.field_map = field_map
+        self.filter_converter = QdrantFilterConverter()
 
     def documents_to_batch(
         self, documents: List[Document], *, fill_missing_embeddings: bool = False
@@ -39,6 +42,13 @@ class HaystackToQdrant:
     def convert_id(self, id: str) -> str:
         """Converts any string into a UUID-like format in a deterministic way."""
         return uuid.uuid5(self.UUID_NAMESPACE, id).hex
+
+    def convert_filters(
+        self,
+        filters: Union[dict, List[dict]],
+        allowed_ids: Optional[List[rest.ExtendedPointId]] = None,
+    ) -> rest.Filter:
+        return self.filter_converter.convert(filters, allowed_ids)
 
 
 QdrantPoint = Union[rest.ScoredPoint, rest.Record]
