@@ -1,6 +1,5 @@
 from abc import ABC
-from enum import Enum
-from typing import Union, Any, List, Tuple, Optional
+from typing import Union, Any, List, Optional
 
 from qdrant_client.http import models as rest
 
@@ -12,7 +11,7 @@ class BaseFilterConverter(ABC):
         self,
         filter_term: Union[dict, List[dict]],
         allowed_ids: Optional[List[Any]] = None,
-    ) -> Any:
+    ) -> Optional[Any]:
         raise NotImplementedError
 
 
@@ -23,7 +22,7 @@ class QdrantFilterConverter(BaseFilterConverter):
         self,
         filter_term: Union[dict, List[dict]],
         allowed_ids: Optional[List[rest.ExtendedPointId]] = None,
-    ) -> rest.Filter:
+    ) -> Optional[rest.Filter]:
         if filter_term is None and allowed_ids is None:
             return None
 
@@ -162,23 +161,36 @@ class QdrantFilterConverter(BaseFilterConverter):
         :param payload_filter:
         :return:
         """
-        filter_parts = [
-            payload_filter.must,
-            payload_filter.should,
-            payload_filter.must_not,
-        ]
+        filter_parts = {
+            "must": payload_filter.must,
+            "should": payload_filter.should,
+            "must_not": payload_filter.must_not,
+        }
 
-        total_clauses = sum(len(x) for x in filter_parts if x is not None)
+        total_clauses = sum(len(x) for x in filter_parts.values() if x is not None)
         if total_clauses == 0 or total_clauses > 1:
             return payload_filter
 
         # Payload filter has just a single clause provided (either must, should
         # or must_not). If that single clause is also of a rest.Filter type,
         # then it might be returned instead.
-        for filter_part in filter_parts:
-            if filter_part is None:
+        for part_name, filter_part in filter_parts.items():
+            if filter_part is None or 0 == len(filter_part):
                 continue
-            if len(filter_part) == 1 and isinstance(filter_part[0], rest.Filter):
-                return filter_part[0]
+
+            subfilter = filter_part[0]
+            if not isinstance(subfilter, rest.Filter):
+                # The inner statement is a simple condition like rest.FieldCondition
+                # so it cannot be simplified.
+                continue
+
+            if "must" == part_name:
+                # If the parent is a must statement, then we may just return
+                # the inner one. For should and must_not that has to be handled
+                # differently.
+                return subfilter
+
+            if subfilter.must is not None and len(subfilter.must) > 0:
+                return rest.Filter(**{part_name: subfilter.must})
 
         return payload_filter

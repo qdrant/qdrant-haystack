@@ -217,7 +217,9 @@ class QdrantDocumentStore(BaseDocumentStore):
         results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
         if scale_score:
             for document in results:
-                document.score = self.scale_to_unit_interval(document.score, self.similarity)
+                document.score = self.scale_to_unit_interval(
+                    document.score, self.similarity
+                )
         return results
 
     def write_documents(

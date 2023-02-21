@@ -219,3 +219,47 @@ def test_qdrant_filter_converter_has_id(qdrant_converter):
     assert converted_filter is not None
     assert isinstance(converted_filter, rest.Filter)
     assert target_filter == converted_filter
+
+
+@pytest.mark.parametrize(
+    argnames=["filter_term"],
+    argvalues=[({"$not": {"field_name": 212}},)],
+)
+def test_qdrant_filter_converter_not_operation(qdrant_converter, filter_term):
+    converted_filter = qdrant_converter.convert(filter_term)
+    target_filter = rest.Filter(
+        must_not=[
+            rest.FieldCondition(
+                key="field_name",
+                match=rest.MatchValue(value=212),
+            )
+        ]
+    )
+
+    assert converted_filter is not None
+    assert isinstance(converted_filter, rest.Filter)
+    assert target_filter == converted_filter
+
+
+@pytest.mark.parametrize(
+    argnames=["filter_term"],
+    argvalues=[({"$or": [{"field_name": 212}, {"field_name": 211}]},)],
+)
+def test_qdrant_filter_converter_or_operation(qdrant_converter, filter_term):
+    converted_filter = qdrant_converter.convert(filter_term)
+    target_filter = rest.Filter(
+        should=[
+            rest.FieldCondition(
+                key="field_name",
+                match=rest.MatchValue(value=212),
+            ),
+            rest.FieldCondition(
+                key="field_name",
+                match=rest.MatchValue(value=211),
+            ),
+        ]
+    )
+
+    assert converted_filter is not None
+    assert isinstance(converted_filter, rest.Filter)
+    assert target_filter == converted_filter
