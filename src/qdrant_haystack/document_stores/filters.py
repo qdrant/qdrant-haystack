@@ -100,14 +100,18 @@ class QdrantFilterConverter(BaseFilterConverter):
     def _build_eq_condition(
         self, key: str, value: rest.ValueVariants
     ) -> rest.Condition:
-        return rest.FieldCondition(key=key, match=rest.MatchValue(value=value))
+        return rest.FieldCondition(
+            key=f"meta.{key}", match=rest.MatchValue(value=value)
+        )
 
     def _build_in_condition(
         self, key: str, value: List[rest.ValueVariants]
     ) -> rest.Condition:
         return rest.Filter(
             should=[
-                rest.FieldCondition(key=key, match=rest.MatchValue(value=item))
+                rest.FieldCondition(
+                    key=f"meta.{key}", match=rest.MatchValue(value=item)
+                )
                 for item in value
             ]
         )
@@ -116,7 +120,11 @@ class QdrantFilterConverter(BaseFilterConverter):
         self, key: str, value: rest.ValueVariants
     ) -> rest.Condition:
         return rest.Filter(
-            must_not=[rest.FieldCondition(key=key, match=rest.MatchValue(value=value))]
+            must_not=[
+                rest.FieldCondition(
+                    key=f"meta.{key}", match=rest.MatchValue(value=value)
+                )
+            ]
         )
 
     def _build_nin_condition(
@@ -124,7 +132,9 @@ class QdrantFilterConverter(BaseFilterConverter):
     ) -> rest.Condition:
         return rest.Filter(
             must_not=[
-                rest.FieldCondition(key=key, match=rest.MatchValue(value=item))
+                rest.FieldCondition(
+                    key=f"meta.{key}", match=rest.MatchValue(value=item)
+                )
                 for item in value
             ]
         )
@@ -132,22 +142,22 @@ class QdrantFilterConverter(BaseFilterConverter):
     def _build_lt_condition(
         self, key: str, value: rest.ValueVariants
     ) -> rest.Condition:
-        return rest.FieldCondition(key=key, range=rest.Range(lt=value))
+        return rest.FieldCondition(key=f"meta.{key}", range=rest.Range(lt=value))
 
     def _build_lte_condition(
         self, key: str, value: rest.ValueVariants
     ) -> rest.Condition:
-        return rest.FieldCondition(key=key, range=rest.Range(lte=value))
+        return rest.FieldCondition(key=f"meta.{key}", range=rest.Range(lte=value))
 
     def _build_gt_condition(
         self, key: str, value: rest.ValueVariants
     ) -> rest.Condition:
-        return rest.FieldCondition(key=key, range=rest.Range(gt=value))
+        return rest.FieldCondition(key=f"meta.{key}", range=rest.Range(gt=value))
 
     def _build_gte_condition(
         self, key: str, value: rest.ValueVariants
     ) -> rest.Condition:
-        return rest.FieldCondition(key=key, range=rest.Range(gte=value))
+        return rest.FieldCondition(key=f"meta.{key}", range=rest.Range(gte=value))
 
     def _build_has_id_condition(
         self, id_values: List[rest.ExtendedPointId]

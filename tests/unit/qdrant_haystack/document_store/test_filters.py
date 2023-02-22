@@ -42,7 +42,7 @@ def test_qdrant_filter_converter_comparison_operation(qdrant_converter, filter_t
     target_filter = rest.Filter(
         must=[
             rest.FieldCondition(
-                key="type",
+                key="meta.type",
                 match=rest.MatchValue(value="article"),
             ),
         ]
@@ -65,11 +65,11 @@ def test_qdrant_filter_converter_comparison_in(qdrant_converter, filter_term):
     target_filter = rest.Filter(
         should=[
             rest.FieldCondition(
-                key="item_id",
+                key="meta.item_id",
                 match=rest.MatchValue(value="item_1"),
             ),
             rest.FieldCondition(
-                key="item_id",
+                key="meta.item_id",
                 match=rest.MatchValue(value="item_2"),
             ),
         ]
@@ -89,7 +89,7 @@ def test_qdrant_filter_converter_ne_operation(qdrant_converter, filter_term):
     target_filter = rest.Filter(
         must_not=[
             rest.FieldCondition(
-                key="type",
+                key="meta.type",
                 match=rest.MatchValue(value="article"),
             ),
         ]
@@ -111,11 +111,11 @@ def test_qdrant_filter_converter_nin_operation(qdrant_converter, filter_term):
     target_filter = rest.Filter(
         must_not=[
             rest.FieldCondition(
-                key="item_id",
+                key="meta.item_id",
                 match=rest.MatchValue(value="item_1"),
             ),
             rest.FieldCondition(
-                key="item_id",
+                key="meta.item_id",
                 match=rest.MatchValue(value="item_2"),
             ),
         ]
@@ -135,7 +135,7 @@ def test_qdrant_filter_converter_gt_operation(qdrant_converter, filter_term):
     target_filter = rest.Filter(
         must=[
             rest.FieldCondition(
-                key="type",
+                key="meta.type",
                 range=rest.Range(gt=1.0),
             ),
         ]
@@ -155,7 +155,7 @@ def test_qdrant_filter_converter_gte_operation(qdrant_converter, filter_term):
     target_filter = rest.Filter(
         must=[
             rest.FieldCondition(
-                key="type",
+                key="meta.type",
                 range=rest.Range(gte=2.0),
             ),
         ]
@@ -175,7 +175,7 @@ def test_qdrant_filter_converter_lt_operation(qdrant_converter, filter_term):
     target_filter = rest.Filter(
         must=[
             rest.FieldCondition(
-                key="type",
+                key="meta.type",
                 range=rest.Range(lt=3.0),
             ),
         ]
@@ -195,7 +195,7 @@ def test_qdrant_filter_converter_lte_operation(qdrant_converter, filter_term):
     target_filter = rest.Filter(
         must=[
             rest.FieldCondition(
-                key="type",
+                key="meta.type",
                 range=rest.Range(lte=4.0),
             ),
         ]
@@ -230,7 +230,7 @@ def test_qdrant_filter_converter_not_operation(qdrant_converter, filter_term):
     target_filter = rest.Filter(
         must_not=[
             rest.FieldCondition(
-                key="field_name",
+                key="meta.field_name",
                 match=rest.MatchValue(value=212),
             )
         ]
@@ -250,11 +250,11 @@ def test_qdrant_filter_converter_or_operation(qdrant_converter, filter_term):
     target_filter = rest.Filter(
         should=[
             rest.FieldCondition(
-                key="field_name",
+                key="meta.field_name",
                 match=rest.MatchValue(value=212),
             ),
             rest.FieldCondition(
-                key="field_name",
+                key="meta.field_name",
                 match=rest.MatchValue(value=211),
             ),
         ]
@@ -263,3 +263,30 @@ def test_qdrant_filter_converter_or_operation(qdrant_converter, filter_term):
     assert converted_filter is not None
     assert isinstance(converted_filter, rest.Filter)
     assert target_filter == converted_filter
+
+
+@pytest.mark.parametrize(
+    argnames=["filter_term"],
+    argvalues=[({"$and": [{"field_name": 212}, {"field_name": 211}]},)],
+)
+def test_qdrant_filter_converter_and_operation(qdrant_converter, filter_term):
+    converted_filter = qdrant_converter.convert(filter_term)
+    target_filter = rest.Filter(
+        must=[
+            rest.FieldCondition(
+                key="meta.field_name",
+                match=rest.MatchValue(value=212),
+            ),
+            rest.FieldCondition(
+                key="meta.field_name",
+                match=rest.MatchValue(value=211),
+            ),
+        ]
+    )
+
+    assert converted_filter is not None
+    assert isinstance(converted_filter, rest.Filter)
+    assert target_filter == converted_filter
+
+
+# TODO: test has_id filter combined with more advanced filters
