@@ -18,6 +18,7 @@ from qdrant_haystack.document_stores.converters import (
     HaystackToQdrant,
     QdrantToHaystack,
 )
+from qdrant_haystack.document_stores.filters import QdrantFilterConverter
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +83,8 @@ class QdrantDocumentStore(BaseDocumentStore):
         self.return_embedding = return_embedding
         self.progress_bar = progress_bar
         self.duplicate_documents = duplicate_documents
-        self.haystack_to_qdrant_converter = HaystackToQdrant(
-            embedding_field, embedding_dim, self._create_document_field_map()
-        )
+        self.qdrant_filter_converter = QdrantFilterConverter()
+        self.haystack_to_qdrant_converter = HaystackToQdrant()
         self.qdrant_to_haystack = QdrantToHaystack(
             content_field,
             name_field,
@@ -114,7 +114,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         headers: Optional[Dict[str, str]] = None,
     ) -> Generator[Document, None, None]:
         index = index or self.index
-        qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(filters)
+        qdrant_filters = self.qdrant_filter_converter.convert(filters)
 
         next_offset = None
         continue_scroll = True
@@ -152,19 +152,13 @@ class QdrantDocumentStore(BaseDocumentStore):
     ) -> List[Document]:
         index = index or self.index
 
-        qdrant_ids = [self.haystack_to_qdrant_converter.convert_id(id) for id in ids]
-
         next_offset = None
         continue_scroll = True
         documents: List[Document] = []
         while continue_scroll:
             records, next_offset = self.client.scroll(
                 collection_name=index,
-                scroll_filter=rest.Filter(
-                    should=rest.HasIdCondition(
-                        has_id=qdrant_ids,
-                    )
-                ),
+                scroll_filter=self.qdrant_filter_converter.convert(None, ids),
                 limit=batch_size,
                 offset=next_offset,
                 with_payload=True,
@@ -185,7 +179,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         headers: Optional[Dict[str, str]] = None,
     ) -> int:
         index = index or self.index
-        qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(filters)
+        qdrant_filters = self.qdrant_filter_converter.convert(filters)
 
         try:
             response = self.client.count(
@@ -216,7 +210,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         scale_score: bool = True,
     ) -> List[Document]:
         index = index or self.index
-        qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(filters)
+        qdrant_filters = self.qdrant_filter_converter.convert(filters)
 
         points = self.client.search(
             collection_name=index,
@@ -274,10 +268,12 @@ class QdrantDocumentStore(BaseDocumentStore):
             for document_batch in batched_documents:
                 batch = self.haystack_to_qdrant_converter.documents_to_batch(
                     document_batch,
+                    embedding_field=self.embedding_field,
+                    embedding_dim=self.embedding_dim,
+                    field_map=self._create_document_field_map(),
                     fill_missing_embeddings=True,
                 )
 
-                # TODO: handle duplicate_documents differently
                 response = self.client.upsert(
                     collection_name=index,
                     points=batch,
@@ -340,7 +336,10 @@ class QdrantDocumentStore(BaseDocumentStore):
 
                 # Upsert points into Qdrant and overwrite the entries
                 batch = self.haystack_to_qdrant_converter.documents_to_batch(
-                    document_batch
+                    document_batch,
+                    embedding_field=self.embedding_field,
+                    embedding_dim=self.embedding_dim,
+                    field_map=self._create_document_field_map(),
                 )
                 self.client.upsert(
                     collection_name=index,
@@ -363,7 +362,12 @@ class QdrantDocumentStore(BaseDocumentStore):
 
         # Upsert point into Qdrant and overwrite the entry. Batch is used to keep
         # the same logic as for .update_embeddings.
-        batch = self.haystack_to_qdrant_converter.documents_to_batch([document])
+        batch = self.haystack_to_qdrant_converter.documents_to_batch(
+            [document],
+            embedding_field=self.embedding_field,
+            embedding_dim=self.embedding_dim,
+            field_map=self._create_document_field_map(),
+        )
         self.client.upsert(
             collection_name=index,
             points=batch,
@@ -377,14 +381,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         headers: Optional[Dict[str, str]] = None,
     ):
         index = index or self.index
-        qdrant_ids = (
-            [self.haystack_to_qdrant_converter.convert_id(id) for id in ids]
-            if ids is not None
-            else None
-        )
-        qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(
-            filters, qdrant_ids
-        )
+        qdrant_filters = self.qdrant_filter_converter.convert(filters, ids)
 
         self.client.delete(
             collection_name=index,
@@ -398,7 +395,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         headers: Optional[Dict[str, str]] = None,
     ):
         index = index or self.index
-        qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(filters)
+        qdrant_filters = self.qdrant_filter_converter.convert(filters)
 
         self.client.delete(
             collection_name=index,

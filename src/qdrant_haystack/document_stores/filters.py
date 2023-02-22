@@ -3,6 +3,8 @@ from typing import Union, Any, List, Optional
 
 from qdrant_client.http import models as rest
 
+from qdrant_haystack.document_stores.converters import HaystackToQdrant
+
 
 class BaseFilterConverter(ABC):
     """Converts Haystack filters to a format accepted by an external tool."""
@@ -18,10 +20,13 @@ class BaseFilterConverter(ABC):
 class QdrantFilterConverter(BaseFilterConverter):
     """Converts Haystack filters to the format used by Qdrant."""
 
+    def __init__(self):
+        self.haystack_to_qdrant_converter = HaystackToQdrant()
+
     def convert(
         self,
-        filter_term: Union[dict, List[dict]],
-        allowed_ids: Optional[List[rest.ExtendedPointId]] = None,
+        filter_term: Optional[Union[dict, List[dict]]] = None,
+        allowed_ids: Optional[List[str]] = None,
     ) -> Optional[rest.Filter]:
         if filter_term is None and allowed_ids is None:
             return None
@@ -162,7 +167,13 @@ class QdrantFilterConverter(BaseFilterConverter):
     def _build_has_id_condition(
         self, id_values: List[rest.ExtendedPointId]
     ) -> rest.HasIdCondition:
-        return rest.HasIdCondition(has_id=id_values)
+        return rest.HasIdCondition(
+            has_id=[
+                # Ids are converted into their internal representation
+                self.haystack_to_qdrant_converter.convert_id(item)
+                for item in id_values
+            ]
+        )
 
     def _squueze_filter(self, payload_filter: rest.Filter) -> rest.Filter:
         """

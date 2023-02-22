@@ -5,30 +5,26 @@ from haystack import Document
 from qdrant_client.http import models as rest
 import numpy as np
 
-from qdrant_haystack.document_stores.filters import QdrantFilterConverter
-
 
 class HaystackToQdrant:
     """A converter from Haystack to Qdrant types."""
 
     UUID_NAMESPACE = uuid.UUID("3896d314-1e95-4a3a-b45a-945f9f0b541d")
 
-    def __init__(
-        self, embedding_field: str, embedding_dim: int, field_map: Dict[str, str]
-    ):
-        self.embedding_field = embedding_field
-        self.embedding_dim = embedding_dim
-        self.field_map = field_map
-        self.filter_converter = QdrantFilterConverter()
-
     def documents_to_batch(
-        self, documents: List[Document], *, fill_missing_embeddings: bool = False
+        self,
+        documents: List[Document],
+        *,
+        embedding_field: str,
+        embedding_dim: int,
+        field_map: Dict[str, str],
+        fill_missing_embeddings: bool = False
     ) -> rest.Batch:
-        payloads = [doc.to_dict(field_map=self.field_map) for doc in documents]
-        vectors = [payload.pop(self.embedding_field) for payload in payloads]
+        payloads = [doc.to_dict(field_map=field_map) for doc in documents]
+        vectors = [payload.pop(embedding_field) for payload in payloads]
         if fill_missing_embeddings:
             vectors = [
-                vector if vector is not None else np.random.random(self.embedding_dim)
+                vector if vector is not None else np.random.random(embedding_dim)
                 for vector in vectors
             ]
         vectors = [vector.tolist() for vector in vectors]
@@ -40,15 +36,13 @@ class HaystackToQdrant:
         )
 
     def convert_id(self, id: str) -> str:
-        """Converts any string into a UUID-like format in a deterministic way."""
-        return uuid.uuid5(self.UUID_NAMESPACE, id).hex
+        """
+        Converts any string into a UUID-like format in a deterministic way.
 
-    def convert_filters(
-        self,
-        filters: Union[dict, List[dict]],
-        allowed_ids: Optional[List[rest.ExtendedPointId]] = None,
-    ) -> rest.Filter:
-        return self.filter_converter.convert(filters, allowed_ids)
+        Qdrant does not accept any string as an id, so an internal id has to be
+        generated for each point. This is a deterministic way of doing so.
+        """
+        return uuid.uuid5(self.UUID_NAMESPACE, id).hex
 
 
 QdrantPoint = Union[rest.ScoredPoint, rest.Record]

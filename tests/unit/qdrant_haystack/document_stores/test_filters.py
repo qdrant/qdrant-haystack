@@ -207,11 +207,15 @@ def test_qdrant_filter_converter_lte_operation(qdrant_converter, filter_term):
 
 
 def test_qdrant_filter_converter_has_id(qdrant_converter):
-    converted_filter = qdrant_converter.convert(None, [1, 2, 3])
+    converted_filter = qdrant_converter.convert(None, ["1", "2", "3"])
     target_filter = rest.Filter(
         must=[
             rest.HasIdCondition(
-                has_id=[1, 2, 3],
+                has_id=[
+                    "1a815aaf5fc85fe9879270357cef766f",
+                    "2bc29abd932c57ec9a3f7f26fe0cf80d",
+                    "0604d56b50be526aa7b47657ebb52f38",
+                ],
             ),
         ]
     )
