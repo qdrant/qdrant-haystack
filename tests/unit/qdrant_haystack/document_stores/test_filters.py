@@ -1,7 +1,7 @@
 import pytest
+from qdrant_client.http import models as rest
 
 from qdrant_haystack.document_stores.filters import QdrantFilterConverter
-from qdrant_client.http import models as rest
 
 
 @pytest.fixture

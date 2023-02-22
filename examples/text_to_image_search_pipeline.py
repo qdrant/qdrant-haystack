@@ -1,15 +1,14 @@
 import os
 
-from haystack import Document
+from haystack import Document, Pipeline
 from haystack.nodes.retriever.multimodal import MultiModalRetriever
 from haystack.utils import fetch_archive_from_http
-from haystack import Pipeline
-from qdrant_haystack import QdrantDocumentStore
 
+from qdrant_haystack import QdrantDocumentStore
 
 # Here we initialize the DocumentStore to store 512 dim image embeddings
 # obtained using OpenAI CLIP model
-document_store = QdrantDocumentStore(embedding_dim=512)
+document_store = QdrantDocumentStore(embedding_dim=512, recreate_index=True)
 
 
 doc_dir = "data/tutorial19"

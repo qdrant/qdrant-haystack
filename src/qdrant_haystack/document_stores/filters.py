@@ -1,5 +1,5 @@
 from abc import ABC
-from typing import Union, Any, List, Optional
+from typing import Any, List, Optional, Union
 
 from qdrant_client.http import models as rest
 

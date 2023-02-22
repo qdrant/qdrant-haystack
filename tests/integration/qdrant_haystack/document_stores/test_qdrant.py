@@ -1,15 +1,12 @@
-import uuid
 from typing import List
 from unittest.mock import MagicMock
 
-import pytest
 import numpy as np
-
+import pytest
 from haystack import Document
 from haystack.errors import DuplicateDocumentError
 
 from qdrant_haystack import QdrantDocumentStore
-
 
 EMBEDDING_DIM = 768
 
@@ -156,7 +153,7 @@ def test_deleting_by_id_or_by_filters(
 def test_similarity_existing_index(similarity: str):
     """Testing non-matching similarity"""
     # create the document_store
-    document_store = QdrantDocumentStore(
+    QdrantDocumentStore(
         similarity=similarity,
         index=f"test_similarity_existing_index_{similarity}",
         recreate_index=True,
@@ -168,7 +165,7 @@ def test_similarity_existing_index(similarity: str):
         ValueError,
         match=r"already exists in Qdrant, but it is configured with a similarity .*",
     ):
-        document_store2 = QdrantDocumentStore(
+        QdrantDocumentStore(
             similarity=non_matching_similarity,
             index=f"test_similarity_existing_index_{similarity}",
             recreate_index=False,

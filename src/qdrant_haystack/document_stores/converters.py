@@ -1,9 +1,9 @@
 import uuid
-from typing import Union, List, Dict, Optional
+from typing import Dict, List, Union
 
+import numpy as np
 from haystack import Document
 from qdrant_client.http import models as rest
-import numpy as np
 
 
 class HaystackToQdrant:

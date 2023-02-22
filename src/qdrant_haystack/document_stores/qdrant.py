@@ -1,23 +1,20 @@
 import logging
-from typing import Optional, Dict, List, Union, Generator, Any, cast
+from typing import Any, Dict, Generator, List, Optional, Union, cast
 
 import numpy as np
 import qdrant_client
 from haystack import Document, Label
+from haystack.document_stores import BaseDocumentStore
 from haystack.document_stores.base import get_batches_from_generator
 from haystack.errors import DocumentStoreError
 from haystack.nodes import DenseRetriever
 from haystack.schema import FilterType
-
 from qdrant_client.http import models as rest
-from haystack.document_stores import BaseDocumentStore
 from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
 
-from qdrant_haystack.document_stores.converters import (
-    HaystackToQdrant,
-    QdrantToHaystack,
-)
+from qdrant_haystack.document_stores.converters import (HaystackToQdrant,
+                                                        QdrantToHaystack)
 from qdrant_haystack.document_stores.filters import QdrantFilterConverter
 
 logger = logging.getLogger(__name__)
