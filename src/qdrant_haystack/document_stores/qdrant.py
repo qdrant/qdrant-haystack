@@ -35,7 +35,7 @@ class QdrantDocumentStore(BaseDocumentStore):
 
     def __init__(
         self,
-        host: str = "localhost",
+        url: Optional[str] = None,
         port: int = 6333,
         grpc_port: int = 6334,
         prefer_grpc: bool = False,
@@ -43,7 +43,8 @@ class QdrantDocumentStore(BaseDocumentStore):
         api_key: Optional[str] = None,
         prefix: Optional[str] = None,
         timeout: Optional[float] = None,
-        collection_name: str = "Document",
+        host: Optional[str] = None,
+        index: str = "Document",
         embedding_dim: int = 768,
         content_field: str = "content",
         name_field: str = "name",
@@ -58,7 +59,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         super().__init__()
 
         self.client = qdrant_client.QdrantClient(
-            host=host,
+            url=url,
             port=port,
             grpc_port=grpc_port,
             prefer_grpc=prefer_grpc,
@@ -66,19 +67,18 @@ class QdrantDocumentStore(BaseDocumentStore):
             api_key=api_key,
             prefix=prefix,
             timeout=timeout,
+            host=host,
             **kwargs,
         )
 
-        self._set_up_collection(
-            collection_name, embedding_dim, recreate_index, similarity
-        )
+        self._set_up_collection(index, embedding_dim, recreate_index, similarity)
 
         self.embedding_dim = embedding_dim
         self.content_field = content_field
         self.name_field = name_field
         self.embedding_field = embedding_field
         self.similarity = similarity
-        self.index = collection_name
+        self.index = index
         self.return_embedding = return_embedding
         self.progress_bar = progress_bar
         self.duplicate_documents = duplicate_documents
@@ -187,11 +187,23 @@ class QdrantDocumentStore(BaseDocumentStore):
         index = index or self.index
         qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(filters)
 
-        response = self.client.count(
-            collection_name=index,
-            count_filter=qdrant_filters,
-        )
-        return response.count
+        try:
+            response = self.client.count(
+                collection_name=index,
+                count_filter=qdrant_filters,
+            )
+            return response.count
+        except UnexpectedResponse:
+            return 0
+
+    def get_embedding_count(
+        self, filters: Optional[FilterType] = None, index: Optional[str] = None
+    ) -> int:
+        """
+        Return the number of embeddings in the document store, which is the same as the
+        number of documents since every document has a default embedding.
+        """
+        return self.get_document_count(filters, index)
 
     def query_by_embedding(
         self,
@@ -365,7 +377,11 @@ class QdrantDocumentStore(BaseDocumentStore):
         headers: Optional[Dict[str, str]] = None,
     ):
         index = index or self.index
-        qdrant_ids = [self.haystack_to_qdrant_converter.convert_id(id) for id in ids]
+        qdrant_ids = (
+            [self.haystack_to_qdrant_converter.convert_id(id) for id in ids]
+            if ids is not None
+            else None
+        )
         qdrant_filters = self.haystack_to_qdrant_converter.convert_filters(
             filters, qdrant_ids
         )
