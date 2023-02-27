@@ -21,7 +21,7 @@ jobs:
           - windows-latest
           - macos-latest
 
-    name: Python ${{ matrix.python-version }} test
+    name: Python ${{ matrix.python-version }} test on ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v2
