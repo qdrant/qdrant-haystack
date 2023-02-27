@@ -10,8 +10,8 @@ from haystack.document_stores.base import get_batches_from_generator
 from haystack.errors import DocumentStoreError
 from haystack.nodes import DenseRetriever
 from haystack.schema import FilterType
-from qdrant_client.http import models as rest
 from qdrant_client import grpc
+from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
 
@@ -129,9 +129,9 @@ class QdrantDocumentStore(BaseDocumentStore):
                 with_vectors=True,
             )
             stop_scrolling = next_offset is None or (
-                    isinstance(next_offset, grpc.PointId)
-                    and next_offset.num == 0
-                    and next_offset.uuid == ""
+                isinstance(next_offset, grpc.PointId)
+                and next_offset.num == 0
+                and next_offset.uuid == ""
             )
 
             for record in records:
@@ -171,9 +171,9 @@ class QdrantDocumentStore(BaseDocumentStore):
                 with_vectors=True,
             )
             stop_scrolling = next_offset is None or (
-                    isinstance(next_offset, grpc.PointId)
-                    and next_offset.num == 0
-                    and next_offset.uuid == ""
+                isinstance(next_offset, grpc.PointId)
+                and next_offset.num == 0
+                and next_offset.uuid == ""
             )
 
             for record in records:
