@@ -3,6 +3,7 @@ from typing import Any, Dict, Generator, List, Optional, Union, cast
 
 import numpy as np
 import qdrant_client
+from grpc._channel import _InactiveRpcError
 from haystack import Document, Label
 from haystack.document_stores import BaseDocumentStore
 from haystack.document_stores.base import get_batches_from_generator
@@ -10,11 +11,14 @@ from haystack.errors import DocumentStoreError
 from haystack.nodes import DenseRetriever
 from haystack.schema import FilterType
 from qdrant_client.http import models as rest
+from qdrant_client import grpc
 from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
 
-from qdrant_haystack.document_stores.converters import (HaystackToQdrant,
-                                                        QdrantToHaystack)
+from qdrant_haystack.document_stores.converters import (
+    HaystackToQdrant,
+    QdrantToHaystack,
+)
 from qdrant_haystack.document_stores.filters import QdrantFilterConverter
 
 logger = logging.getLogger(__name__)
@@ -114,17 +118,21 @@ class QdrantDocumentStore(BaseDocumentStore):
         qdrant_filters = self.qdrant_filter_converter.convert(filters)
 
         next_offset = None
-        continue_scroll = True
-        while continue_scroll:
+        stop_scrolling = False
+        while not stop_scrolling:
             records, next_offset = self.client.scroll(
                 collection_name=index,
                 scroll_filter=qdrant_filters,
                 limit=batch_size,
                 offset=next_offset,
                 with_payload=True,
-                with_vectors=False,
+                with_vectors=True,
             )
-            continue_scroll = next_offset is not None
+            stop_scrolling = next_offset is None or (
+                    isinstance(next_offset, grpc.PointId)
+                    and next_offset.num == 0
+                    and next_offset.uuid == ""
+            )
 
             for record in records:
                 yield self.qdrant_to_haystack.point_to_document(record)
@@ -149,19 +157,24 @@ class QdrantDocumentStore(BaseDocumentStore):
     ) -> List[Document]:
         index = index or self.index
 
-        next_offset = None
-        continue_scroll = True
         documents: List[Document] = []
-        while continue_scroll:
+
+        next_offset = None
+        stop_scrolling = False
+        while not stop_scrolling:
             records, next_offset = self.client.scroll(
                 collection_name=index,
                 scroll_filter=self.qdrant_filter_converter.convert(None, ids),
                 limit=batch_size,
                 offset=next_offset,
                 with_payload=True,
-                with_vectors=False,
+                with_vectors=True,
             )
-            continue_scroll = next_offset is not None
+            stop_scrolling = next_offset is None or (
+                    isinstance(next_offset, grpc.PointId)
+                    and next_offset.num == 0
+                    and next_offset.uuid == ""
+            )
 
             for record in records:
                 documents.append(self.qdrant_to_haystack.point_to_document(record))
@@ -338,7 +351,7 @@ class QdrantDocumentStore(BaseDocumentStore):
                     embedding_dim=self.embedding_dim,
                     field_map=self._create_document_field_map(),
                 )
-                self.client.upsert(
+                response = self.client.upsert(
                     collection_name=index,
                     points=batch,
                 )
@@ -486,7 +499,7 @@ class QdrantDocumentStore(BaseDocumentStore):
                     f"If you want to use that collection, but with a different "
                     f"vector size, please set `recreate_collection=True` argument."
                 )
-        except UnexpectedResponse:
+        except (UnexpectedResponse, _InactiveRpcError):
             # That indicates the collection does not exist, so it can be
             # safely created with any configuration.
             self._recreate_collection(collection_name, distance, embedding_dim)
