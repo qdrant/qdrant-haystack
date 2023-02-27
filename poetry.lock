@@ -2496,14 +2496,14 @@ files = [
 
 [[package]]
 name = "qdrant-client"
-version = "1.0.1"
+version = "1.0.2"
 description = "Client library for the Qdrant vector search engine"
 category = "main"
 optional = false
 python-versions = ">=3.7,<=3.11"
 files = [
-    {file = "qdrant_client-1.0.1-py3-none-any.whl", hash = "sha256:a4162882481a7cc461b3592fb781c995481627516d6a9ba89bbabfe1734d33e9"},
-    {file = "qdrant_client-1.0.1.tar.gz", hash = "sha256:d703ed9d30b877348cc842945315ff17c99984df04174816894141902cb9e096"},
+    {file = "qdrant_client-1.0.2-py3-none-any.whl", hash = "sha256:ee8c2c71cfab4d44a1914a0d337a36fc93f033fa9fa96ec98c0cfcd542e23f52"},
+    {file = "qdrant_client-1.0.2.tar.gz", hash = "sha256:707f8382fa8c18dc94dd36872ee6d4ad126b9e1e957b88c04945e29ee3888cd1"},
 ]
 
 [package.dependencies]
@@ -2513,6 +2513,7 @@ httpx = {version = ">=0.14.0", extras = ["http2"]}
 numpy = ">=1.21"
 pydantic = ">=1.8,<2.0"
 typing-extensions = ">=4.0.0,<5.0.0"
+urllib3 = ">=1.26.14,<2.0.0"
 
 [[package]]
 name = "quantulum3"
@@ -3597,4 +3598,4 @@ testing = ["flake8 (<5)", "func-timeout", "jaraco.functools", "jaraco.itertools"
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<=3.11"
-content-hash = "d64a52cda6fb34b8d8be7d23d15189133e23ef95cbefa10e99fce034e565e336"
+content-hash = "d4c170e576302f832c83595bde390682a8ae628a446c8e155c62127a1e7ef140"
