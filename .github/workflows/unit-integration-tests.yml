@@ -34,7 +34,7 @@ jobs:
           python -m pip install poetry
           poetry config virtualenvs.create false
           poetry install --no-interaction --no-ansi
-      - name: Run integration tests
+      - name: Run tests
         run: |
-          ./tests/run-integration-tests.sh
+          ./tests/run-tests.sh
         shell: bash

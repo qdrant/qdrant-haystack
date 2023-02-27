@@ -28,7 +28,7 @@ until $(curl --output /dev/null --silent --get --fail http://$QDRANT_HOST/collec
   sleep 5
 done
 
-pytest ./tests/integration
+pytest
 
 echo "Ok, that is enough"
 
