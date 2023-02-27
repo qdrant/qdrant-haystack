@@ -11,10 +11,13 @@ from qdrant_haystack import QdrantDocumentStore
 EMBEDDING_DIM = 768
 
 
-@pytest.fixture
-def doc_store() -> QdrantDocumentStore:
+@pytest.fixture(params=[True, False])
+def doc_store(request) -> QdrantDocumentStore:
     return QdrantDocumentStore(
-        url="http://localhost", recreate_index=True, return_embedding=True
+        url="http://localhost",
+        recreate_index=True,
+        return_embedding=True,
+        prefer_grpc=request.param,
     )
 
 
@@ -97,6 +100,14 @@ def test_nin_filters(doc_store: QdrantDocumentStore, documents: List[Document]):
         filters={"year": {"$nin": ["2020", "2021", "n.a."]}}
     )
     assert len(result) == 3
+
+
+@pytest.mark.integration
+def test_pagination(doc_store: QdrantDocumentStore, documents: List[Document]):
+    doc_store.write_documents(documents)
+
+    result = doc_store.get_all_documents(batch_size=1)
+    assert len(result) == 9
 
 
 @pytest.mark.integration
