@@ -28,7 +28,7 @@ embeddings.
 from qdrant_haystack import QdrantDocumentStore
 
 document_store = QdrantDocumentStore(
-    host="localhost",
+    url="localhost",
     index="Document",
     embedding_dim=512,
     recreate_index=True,
@@ -37,3 +37,22 @@ document_store = QdrantDocumentStore(
 
 The list of parameters accepted by `QdrantDocumentStore` is complementary to those used in the
 official [Python Qdrant client](https://github.com/qdrant/qdrant_client).
+
+### Connecting to Qdrant Cloud cluster
+
+If you prefer not to manage your own Qdrant instance, [Qdrant Cloud](https://cloud.qdrant.io/)
+might be a better option.
+
+```python
+from qdrant_haystack import QdrantDocumentStore
+
+document_store = QdrantDocumentStore(
+    url="https://YOUR-CLUSTER-URL.aws.cloud.qdrant.io",
+    index="Document",
+    api_key="<< YOUR QDRANT CLOUD API KEY >>",
+    embedding_dim=512,
+    recreate_index=True,
+)
+```
+
+There is no difference in terms of functionality between local instances and cloud clusters.
