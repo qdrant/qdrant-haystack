@@ -48,7 +48,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         host: Optional[str] = None,
         index: str = "Document",
         embedding_dim: int = 768,
-        hnsw_config: dict = None,
+        hnsw_config: Optional[Dict] = None,
         content_field: str = "content",
         name_field: str = "name",
         embedding_field: str = "vector",
