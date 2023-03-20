@@ -48,6 +48,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         host: Optional[str] = None,
         index: str = "Document",
         embedding_dim: int = 768,
+        hnsw_config: Optional[Dict] = None,
         content_field: str = "content",
         name_field: str = "name",
         embedding_field: str = "vector",
@@ -73,12 +74,15 @@ class QdrantDocumentStore(BaseDocumentStore):
             **kwargs,
         )
 
-        self._set_up_collection(index, embedding_dim, recreate_index, similarity)
+        self._set_up_collection(
+            index, embedding_dim, hnsw_config, recreate_index, similarity
+        )
 
         self.embedding_dim = embedding_dim
         self.content_field = content_field
         self.name_field = name_field
         self.embedding_field = embedding_field
+        self.hnsw_config = hnsw_config
         self.similarity = similarity
         self.index = index
         self.return_embedding = return_embedding
@@ -247,7 +251,9 @@ class QdrantDocumentStore(BaseDocumentStore):
         headers: Optional[Dict[str, str]] = None,
     ):
         index = index or self.index
-        self._set_up_collection(index, self.embedding_dim, False, self.similarity)
+        self._set_up_collection(
+            index, self.embedding_dim, self.hnsw_config, False, self.similarity
+        )
         field_map = self._create_document_field_map()
 
         duplicate_documents = duplicate_documents or self.duplicate_documents
@@ -466,6 +472,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         self,
         collection_name: str,
         embedding_dim: int,
+        hnsw_config: dict,
         recreate_collection: bool,
         similarity: str,
     ):
@@ -474,7 +481,9 @@ class QdrantDocumentStore(BaseDocumentStore):
         if recreate_collection:
             # There is no need to verify the current configuration of that
             # collection. It might be just recreated again.
-            self._recreate_collection(collection_name, distance, embedding_dim)
+            self._recreate_collection(
+                collection_name, distance, embedding_dim, hnsw_config
+            )
             return
 
         try:
@@ -502,13 +511,18 @@ class QdrantDocumentStore(BaseDocumentStore):
         except (UnexpectedResponse, _InactiveRpcError):
             # That indicates the collection does not exist, so it can be
             # safely created with any configuration.
-            self._recreate_collection(collection_name, distance, embedding_dim)
+            self._recreate_collection(
+                collection_name, distance, embedding_dim, hnsw_config
+            )
 
-    def _recreate_collection(self, collection_name, distance, embedding_dim):
+    def _recreate_collection(
+        self, collection_name, distance, embedding_dim, hnsw_config
+    ):
         self.client.recreate_collection(
             collection_name=collection_name,
             vectors_config=rest.VectorParams(
                 size=embedding_dim,
                 distance=distance,
             ),
+            hnsw_config=hnsw_config,
         )
