@@ -14,7 +14,7 @@ EMBEDDING_DIM = 768
 @pytest.fixture(params=[True, False])
 def doc_store(request) -> QdrantDocumentStore:
     return QdrantDocumentStore(
-        location=":memory:",
+        ":memory:",
         recreate_index=True,
         return_embedding=True,
         prefer_grpc=request.param,
