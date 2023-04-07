@@ -37,6 +37,7 @@ class QdrantDocumentStore(BaseDocumentStore):
 
     def __init__(
         self,
+        location: Optional[str] = None,
         url: Optional[str] = None,
         port: int = 6333,
         grpc_port: int = 6334,
@@ -46,6 +47,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         prefix: Optional[str] = None,
         timeout: Optional[float] = None,
         host: Optional[str] = None,
+        path: Optional[str] = None,
         index: str = "Document",
         embedding_dim: int = 768,
         hnsw_config: Optional[Dict] = None,
@@ -62,6 +64,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         super().__init__()
 
         self.client = qdrant_client.QdrantClient(
+            location=location,
             url=url,
             port=port,
             grpc_port=grpc_port,
@@ -71,6 +74,7 @@ class QdrantDocumentStore(BaseDocumentStore):
             prefix=prefix,
             timeout=timeout,
             host=host,
+            path=path,
             **kwargs,
         )
 
@@ -165,10 +169,11 @@ class QdrantDocumentStore(BaseDocumentStore):
 
         next_offset = None
         stop_scrolling = False
+        scroll_filter = self.qdrant_filter_converter.convert(None, ids)
         while not stop_scrolling:
             records, next_offset = self.client.scroll(
                 collection_name=index,
-                scroll_filter=self.qdrant_filter_converter.convert(None, ids),
+                scroll_filter=scroll_filter,
                 limit=batch_size,
                 offset=next_offset,
                 with_payload=True,
@@ -201,7 +206,10 @@ class QdrantDocumentStore(BaseDocumentStore):
                 count_filter=qdrant_filters,
             )
             return response.count
-        except UnexpectedResponse:
+        except (UnexpectedResponse, ValueError):
+            # Qdrant local raises ValueError if the collection is not found, but
+            # with the remote server UnexpectedResponse is raised. Until that's unified,
+            # we need to catch both.
             return 0
 
     def get_embedding_count(
@@ -490,29 +498,35 @@ class QdrantDocumentStore(BaseDocumentStore):
             # Check if the collection already exists and validate its
             # current configuration with the parameters.
             collection_info = self.client.get_collection(collection_name)
-            current_distance = collection_info.config.params.vectors.distance
-            current_vector_size = collection_info.config.params.vectors.size
-
-            if current_distance != distance:
-                raise ValueError(
-                    f"Collection '{collection_name}' already exists in Qdrant, "
-                    f"but it is configured with a similarity '{current_distance.name}'. "
-                    f"If you want to use that collection, but with a different "
-                    f"similarity, please set `recreate_collection=True` argument."
-                )
-
-            if current_vector_size != embedding_dim:
-                raise ValueError(
-                    f"Collection '{collection_name}' already exists in Qdrant, "
-                    f"but it is configured with a vector size '{current_vector_size}'. "
-                    f"If you want to use that collection, but with a different "
-                    f"vector size, please set `recreate_collection=True` argument."
-                )
-        except (UnexpectedResponse, _InactiveRpcError):
+        except (UnexpectedResponse, _InactiveRpcError, ValueError):
             # That indicates the collection does not exist, so it can be
             # safely created with any configuration.
+            #
+            # Qdrant local raises ValueError if the collection is not found, but
+            # with the remote server UnexpectedResponse / _InactiveRpcError is raised.
+            # Until that's unified, we need to catch both.
             self._recreate_collection(
                 collection_name, distance, embedding_dim, hnsw_config
+            )
+            return
+
+        current_distance = collection_info.config.params.vectors.distance
+        current_vector_size = collection_info.config.params.vectors.size
+
+        if current_distance != distance:
+            raise ValueError(
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it is configured with a similarity '{current_distance.name}'. "
+                f"If you want to use that collection, but with a different "
+                f"similarity, please set `recreate_collection=True` argument."
+            )
+
+        if current_vector_size != embedding_dim:
+            raise ValueError(
+                f"Collection '{collection_name}' already exists in Qdrant, "
+                f"but it is configured with a vector size '{current_vector_size}'. "
+                f"If you want to use that collection, but with a different "
+                f"vector size, please set `recreate_collection=True` argument."
             )
 
     def _recreate_collection(
