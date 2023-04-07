@@ -14,7 +14,7 @@ EMBEDDING_DIM = 768
 @pytest.fixture(params=[True, False])
 def doc_store(request) -> QdrantDocumentStore:
     return QdrantDocumentStore(
-        url="http://localhost",
+        location=":memory:",
         recreate_index=True,
         return_embedding=True,
         prefer_grpc=request.param,
@@ -165,6 +165,7 @@ def test_similarity_existing_index(similarity: str):
     """Testing non-matching similarity"""
     # create the document_store
     QdrantDocumentStore(
+        path="/tmp/qdrant_local",
         similarity=similarity,
         index=f"test_similarity_existing_index_{similarity}",
         recreate_index=True,
@@ -177,6 +178,7 @@ def test_similarity_existing_index(similarity: str):
         match=r"already exists in Qdrant, but it is configured with a similarity .*",
     ):
         QdrantDocumentStore(
+            path="/tmp/qdrant_local",
             similarity=non_matching_similarity,
             index=f"test_similarity_existing_index_{similarity}",
             recreate_index=False,
