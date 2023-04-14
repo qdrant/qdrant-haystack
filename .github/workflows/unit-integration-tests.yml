@@ -36,5 +36,5 @@ jobs:
           poetry install --no-interaction --no-ansi
       - name: Run tests
         run: |
-          ./tests/run-tests.sh
+          poetry run pytest
         shell: bash
