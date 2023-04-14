@@ -3,7 +3,7 @@ from typing import Any, Dict, Generator, List, Optional, Union, cast
 
 import numpy as np
 import qdrant_client
-from grpc._channel import _InactiveRpcError
+from grpc import RpcError
 from haystack import Document, Label
 from haystack.document_stores import BaseDocumentStore
 from haystack.document_stores.base import get_batches_from_generator
@@ -11,6 +11,7 @@ from haystack.errors import DocumentStoreError
 from haystack.nodes import DenseRetriever
 from haystack.schema import FilterType
 from qdrant_client import grpc
+from qdrant_client.conversions import common_types as types
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
@@ -50,7 +51,6 @@ class QdrantDocumentStore(BaseDocumentStore):
         path: Optional[str] = None,
         index: str = "Document",
         embedding_dim: int = 768,
-        hnsw_config: Optional[Dict] = None,
         content_field: str = "content",
         name_field: str = "name",
         embedding_field: str = "vector",
@@ -59,6 +59,15 @@ class QdrantDocumentStore(BaseDocumentStore):
         progress_bar: bool = True,
         duplicate_documents: str = "overwrite",
         recreate_index: bool = False,
+        shard_number: Optional[int] = None,
+        replication_factor: Optional[int] = None,
+        write_consistency_factor: Optional[int] = None,
+        on_disk_payload: Optional[bool] = None,
+        hnsw_config: Optional[Union[types.HnswConfigDiff, dict]] = None,
+        optimizers_config: Optional[types.OptimizersConfigDiff] = None,
+        wal_config: Optional[types.WalConfigDiff] = None,
+        quantization_config: Optional[types.QuantizationConfig] = None,
+        init_from: Optional[types.InitFrom] = None,
         **kwargs,
     ):
         super().__init__()
@@ -78,15 +87,24 @@ class QdrantDocumentStore(BaseDocumentStore):
             **kwargs,
         )
 
-        self._set_up_collection(
-            index, embedding_dim, hnsw_config, recreate_index, similarity
-        )
+        # Store the Qdrant specific attributes
+        self.shard_number = shard_number
+        self.replication_factor = replication_factor
+        self.write_consistency_factor = write_consistency_factor
+        self.on_disk_payload = on_disk_payload
+        self.hnsw_config = hnsw_config
+        self.optimizers_config = optimizers_config
+        self.wal_config = wal_config
+        self.quantization_config = quantization_config
+        self.init_from = init_from
+
+        # Make sure the collection is properly set up
+        self._set_up_collection(index, embedding_dim, recreate_index, similarity)
 
         self.embedding_dim = embedding_dim
         self.content_field = content_field
         self.name_field = name_field
         self.embedding_field = embedding_field
-        self.hnsw_config = hnsw_config
         self.similarity = similarity
         self.index = index
         self.return_embedding = return_embedding
@@ -259,9 +277,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         headers: Optional[Dict[str, str]] = None,
     ):
         index = index or self.index
-        self._set_up_collection(
-            index, self.embedding_dim, self.hnsw_config, False, self.similarity
-        )
+        self._set_up_collection(index, self.embedding_dim, False, self.similarity)
         field_map = self._create_document_field_map()
 
         duplicate_documents = duplicate_documents or self.duplicate_documents
@@ -480,7 +496,6 @@ class QdrantDocumentStore(BaseDocumentStore):
         self,
         collection_name: str,
         embedding_dim: int,
-        hnsw_config: dict,
         recreate_collection: bool,
         similarity: str,
     ):
@@ -489,25 +504,21 @@ class QdrantDocumentStore(BaseDocumentStore):
         if recreate_collection:
             # There is no need to verify the current configuration of that
             # collection. It might be just recreated again.
-            self._recreate_collection(
-                collection_name, distance, embedding_dim, hnsw_config
-            )
+            self._recreate_collection(collection_name, distance, embedding_dim)
             return
 
         try:
             # Check if the collection already exists and validate its
             # current configuration with the parameters.
             collection_info = self.client.get_collection(collection_name)
-        except (UnexpectedResponse, _InactiveRpcError, ValueError):
+        except (UnexpectedResponse, RpcError, ValueError):
             # That indicates the collection does not exist, so it can be
             # safely created with any configuration.
             #
             # Qdrant local raises ValueError if the collection is not found, but
-            # with the remote server UnexpectedResponse / _InactiveRpcError is raised.
+            # with the remote server UnexpectedResponse / RpcError is raised.
             # Until that's unified, we need to catch both.
-            self._recreate_collection(
-                collection_name, distance, embedding_dim, hnsw_config
-            )
+            self._recreate_collection(collection_name, distance, embedding_dim)
             return
 
         current_distance = collection_info.config.params.vectors.distance
@@ -529,14 +540,20 @@ class QdrantDocumentStore(BaseDocumentStore):
                 f"vector size, please set `recreate_collection=True` argument."
             )
 
-    def _recreate_collection(
-        self, collection_name, distance, embedding_dim, hnsw_config
-    ):
+    def _recreate_collection(self, collection_name: str, distance, embedding_dim: int):
         self.client.recreate_collection(
             collection_name=collection_name,
             vectors_config=rest.VectorParams(
                 size=embedding_dim,
                 distance=distance,
             ),
-            hnsw_config=hnsw_config,
+            shard_number=self.shard_number,
+            replication_factor=self.replication_factor,
+            write_consistency_factor=self.write_consistency_factor,
+            on_disk_payload=self.on_disk_payload,
+            hnsw_config=self.hnsw_config,
+            optimizers_config=self.optimizers_config,
+            wal_config=self.wal_config,
+            quantization_config=self.quantization_config,
+            init_from=self.init_from,
         )
