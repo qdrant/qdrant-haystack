@@ -68,10 +68,11 @@ class QdrantDocumentStore(BaseDocumentStore):
         wal_config: Optional[types.WalConfigDiff] = None,
         quantization_config: Optional[types.QuantizationConfig] = None,
         init_from: Optional[types.InitFrom] = None,
-        **kwargs,
+        client_kwargs: Optional[Dict[str, Any]] = None,
     ):
         super().__init__()
 
+        client_kwargs = client_kwargs if client_kwargs else {}
         self.client = qdrant_client.QdrantClient(
             location=location,
             url=url,
@@ -84,7 +85,7 @@ class QdrantDocumentStore(BaseDocumentStore):
             timeout=timeout,
             host=host,
             path=path,
-            **kwargs,
+            **client_kwargs,
         )
 
         # Store the Qdrant specific attributes
