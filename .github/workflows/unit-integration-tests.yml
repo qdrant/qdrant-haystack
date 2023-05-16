@@ -7,9 +7,6 @@ on:
 
 jobs:
   test:
-
-    runs-on: ubuntu-latest
-
     strategy:
       matrix:
         python-version:
@@ -17,9 +14,11 @@ jobs:
           - '3.9.x'
           - '3.10.x'
         os:
-          - ubuntu-latest
+          - ubuntu-20.04
           - windows-latest
           - macos-latest
+
+    runs-on: ${{ matrix.os }}
 
     name: Python ${{ matrix.python-version }} test on ${{ matrix.os }}
 
@@ -34,6 +33,7 @@ jobs:
           python -m pip install poetry
           poetry config virtualenvs.create false
           poetry install --no-interaction --no-ansi
+          poetry show
       - name: Run tests
         run: |
           poetry run pytest
