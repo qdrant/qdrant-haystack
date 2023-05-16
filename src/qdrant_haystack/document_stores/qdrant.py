@@ -391,7 +391,7 @@ class QdrantDocumentStore(BaseDocumentStore):
     def update_document_meta(
         self, id: str, meta: Dict[str, Any], index: Optional[str] = None
     ):
-        index = index or self.inde
+        index = index or self.index
         document = self.get_document_by_id(id, index)
         if document is None:
             logger.warning(
