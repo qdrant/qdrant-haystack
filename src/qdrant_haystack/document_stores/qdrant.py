@@ -11,7 +11,6 @@ from haystack.errors import DocumentStoreError
 from haystack.nodes import DenseRetriever
 from haystack.schema import FilterType
 from qdrant_client import grpc
-from qdrant_client.conversions import common_types as types
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
 from tqdm import tqdm
@@ -63,12 +62,11 @@ class QdrantDocumentStore(BaseDocumentStore):
         replication_factor: Optional[int] = None,
         write_consistency_factor: Optional[int] = None,
         on_disk_payload: Optional[bool] = None,
-        hnsw_config: Optional[Union[types.HnswConfigDiff, dict]] = None,
-        optimizers_config: Optional[types.OptimizersConfigDiff] = None,
-        wal_config: Optional[types.WalConfigDiff] = None,
-        quantization_config: Optional[types.QuantizationConfig] = None,
-        init_from: Optional[types.InitFrom] = None,
-        **kwargs,
+        hnsw_config: Optional[dict] = None,
+        optimizers_config: Optional[dict] = None,
+        wal_config: Optional[dict] = None,
+        quantization_config: Optional[dict] = None,
+        init_from: Optional[dict] = None,
     ):
         super().__init__()
 
@@ -84,7 +82,6 @@ class QdrantDocumentStore(BaseDocumentStore):
             timeout=timeout,
             host=host,
             path=path,
-            **kwargs,
         )
 
         # Store the Qdrant specific attributes

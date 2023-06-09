@@ -55,12 +55,13 @@ class QdrantToHaystack:
         self.embedding_field = embedding_field
 
     def point_to_document(self, point: QdrantPoint) -> Document:
+        payload = {**point.payload}
         return Document(
-            content=point.payload.pop(self.content_field),
-            content_type=point.payload.pop("content_type"),
-            id=point.payload.pop("id"),
-            meta=point.payload.pop("meta"),
+            content=payload.pop(self.content_field),
+            content_type=payload.pop("content_type"),
+            id=payload.pop("id"),
+            meta=payload.pop("meta"),
             score=point.score if hasattr(point, "score") else None,
             embedding=np.array(point.vector) if point.vector else None,
-            id_hash_keys=point.payload.pop("id_hash_keys"),
+            id_hash_keys=payload.pop("id_hash_keys"),
         )
