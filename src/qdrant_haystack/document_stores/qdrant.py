@@ -67,6 +67,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         wal_config: Optional[dict] = None,
         quantization_config: Optional[dict] = None,
         init_from: Optional[dict] = None,
+        wait_result_from_api: bool = False
     ):
         super().__init__()
 
@@ -94,6 +95,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         self.wal_config = wal_config
         self.quantization_config = quantization_config
         self.init_from = init_from
+        self.wait_result_from_api = wait_result_from_api
 
         # Make sure the collection is properly set up
         self._set_up_collection(index, embedding_dim, recreate_index, similarity)
@@ -314,6 +316,7 @@ class QdrantDocumentStore(BaseDocumentStore):
                 response = self.client.upsert(
                     collection_name=index,
                     points=batch,
+                    wait=self.wait_result_from_api,
                 )
 
                 # TODO: handle errors in response
@@ -409,6 +412,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         self.client.upsert(
             collection_name=index,
             points=batch,
+            wait=self.wait_result_from_api,
         )
 
     def delete_documents(
@@ -424,6 +428,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         self.client.delete(
             collection_name=index,
             points_selector=qdrant_filters,
+            wait=self.wait_result_from_api,
         )
 
     def delete_all_documents(
@@ -438,6 +443,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         self.client.delete(
             collection_name=index,
             points_selector=qdrant_filters,
+            wait=self.wait_result_from_api,
         )
 
     def delete_index(self, index: str):
