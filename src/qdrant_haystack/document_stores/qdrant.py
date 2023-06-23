@@ -67,7 +67,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         wal_config: Optional[dict] = None,
         quantization_config: Optional[dict] = None,
         init_from: Optional[dict] = None,
-        wait_result_from_api: bool = False
+        wait_result_from_api: bool = True
     ):
         super().__init__()
 
