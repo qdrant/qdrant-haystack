@@ -17,7 +17,7 @@ def doc_store(request) -> QdrantDocumentStore:
         ":memory:",
         recreate_index=True,
         return_embedding=True,
-        prefer_grpc=request.param,
+        wait_result_from_api=request.param,
     )
 
 
