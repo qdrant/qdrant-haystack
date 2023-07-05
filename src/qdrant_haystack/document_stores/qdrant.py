@@ -6,7 +6,12 @@ import qdrant_client
 from grpc import RpcError
 from haystack import Document, Label
 from haystack.document_stores import BaseDocumentStore
-from haystack.document_stores.base import get_batches_from_generator
+
+try:
+    from haystack.utils.batching import get_batches_from_generator
+except ImportError:
+    from haystack.document_stores.base import get_batches_from_generator
+
 from haystack.errors import DocumentStoreError
 from haystack.nodes import DenseRetriever
 from haystack.schema import FilterType
