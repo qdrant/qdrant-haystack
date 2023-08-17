@@ -44,10 +44,10 @@ jobs:
       - name: Install dependencies
         if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: |
-          source .venv/bin/activate
+          source $VENV
           poetry install --no-interaction --no-root
       - name: Run tests
         run: |
-          source .venv/bin/activate
+          source $VENV
           poetry run pytest
         shell: bash
