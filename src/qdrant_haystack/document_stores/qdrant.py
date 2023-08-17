@@ -73,6 +73,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         quantization_config: Optional[dict] = None,
         init_from: Optional[dict] = None,
         wait_result_from_api: bool = True,
+        metadata: Optional[dict] = None,
     ):
         super().__init__()
 
@@ -88,6 +89,7 @@ class QdrantDocumentStore(BaseDocumentStore):
             timeout=timeout,
             host=host,
             path=path,
+            metadata=metadata,
         )
 
         # Store the Qdrant specific attributes
