@@ -40,15 +40,12 @@ jobs:
         uses: snok/install-poetry@v1.3.4
         with:
           virtualenvs-create: true
-          virtualenvs-in-project: false
+          virtualenvs-in-project: true
 
       - name: Install dependencies
-        run: |
-          source $VENV
-          poetry install --no-interaction --no-root
+        run: poetry install --no-interaction --no-root
 
       - name: Run tests
         run: |
           source $VENV
           poetry run pytest
-        shell: bash
