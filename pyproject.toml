@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "qdrant-haystack"
-version = "1.0.6"
+version = "1.0.7"
 description = "An integration of Qdrant ANN vector database backend with Haystack"
 authors = ["Kacper Łukawski <kacper.lukawski@qdrant.com>"]
 packages = [
