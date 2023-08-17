@@ -5,6 +5,10 @@ on:
     branches: [ master ]
   pull_request:
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   test:
     strategy:
@@ -40,9 +44,11 @@ jobs:
 
       - name: Install dependencies
         run: |
+          source $VENV
           poetry install --no-interaction --no-root
 
       - name: Run tests
         run: |
+          source $VENV
           poetry run pytest
         shell: bash
