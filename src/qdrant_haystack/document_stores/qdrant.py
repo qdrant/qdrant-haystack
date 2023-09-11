@@ -90,7 +90,7 @@ class QdrantDocumentStore(BaseDocumentStore):
             timeout=timeout,
             host=host,
             path=path,
-            **metadata
+            **metadata,
         )
 
         # Store the Qdrant specific attributes
