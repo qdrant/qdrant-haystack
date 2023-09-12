@@ -77,7 +77,6 @@ class QdrantDocumentStore(BaseDocumentStore):
     ):
         super().__init__()
 
-        metadata = {} if metadata is None else metadata
         self.client = qdrant_client.QdrantClient(
             location=location,
             url=url,
@@ -90,7 +89,7 @@ class QdrantDocumentStore(BaseDocumentStore):
             timeout=timeout,
             host=host,
             path=path,
-            **metadata,
+            metadata=metadata,
         )
 
         # Store the Qdrant specific attributes

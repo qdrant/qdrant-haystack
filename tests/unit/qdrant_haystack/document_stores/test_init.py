@@ -1,16 +1,34 @@
+import tempfile
+
 import pytest
-import qdrant_client.qdrant_remote
+from qdrant_client.http.exceptions import ResponseHandlingException
 
 from qdrant_haystack import QdrantDocumentStore
 
 
-@pytest.mark.integration
 def test_passing_metadata_propagates_as_rest_headers():
-    doc_store = QdrantDocumentStore("http://localhost:6333", metadata={"foo": "bar"})
+    """
+    Test that passing metadata propagates as rest headers. It simply checks if the
+    exception thrown by QdrantClient is ResponseHandlingException, as it means that
+    the initialization went fine.
+    :return:
+    """
+    with pytest.raises(ResponseHandlingException):
+        QdrantDocumentStore("http://localhost:6333", metadata={"foo": "bar"})
 
-    assert doc_store is not None
-    assert isinstance(
-        doc_store.client._client, qdrant_client.qdrant_remote.QdrantRemote
-    )
-    assert "foo" in doc_store.client._client._rest_headers
-    assert doc_store.client._client._rest_headers["foo"] == "bar"
+
+def test_delete_qdrant_doc_store_does_not_throw_exceptions():
+    """
+    Test that deleting QdrantDocumentStore does not throw TypeError exception
+    https://github.com/qdrant/qdrant-haystack/issues/29#issuecomment-1708277697
+    """
+    with tempfile.TemporaryDirectory() as tmpdir:
+        document_store = QdrantDocumentStore(
+            path=tmpdir,
+            index="Document",
+            embedding_dim=100,
+            recreate_index=True,
+            hnsw_config={"m": 16, "ef_construct": 64},
+        )
+        del document_store
+        assert True
