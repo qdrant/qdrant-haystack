@@ -77,6 +77,7 @@ class QdrantDocumentStore(BaseDocumentStore):
     ):
         super().__init__()
 
+        metadata = metadata or {}
         self.client = qdrant_client.QdrantClient(
             location=location,
             url=url,
