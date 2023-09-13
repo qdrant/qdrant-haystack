@@ -32,3 +32,14 @@ def test_delete_qdrant_doc_store_does_not_throw_exceptions():
         )
         del document_store
         assert True
+
+
+def test_passing_api_key():
+    """
+    Test that passing api key propagates as rest headers. It simply checks if the
+    exception thrown by QdrantClient is ResponseHandlingException, as it means that
+    the initialization went fine.
+    :return:
+    """
+    with pytest.raises(ResponseHandlingException):
+        QdrantDocumentStore("http://localhost:6333", api_key="test")
