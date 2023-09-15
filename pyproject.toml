@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "qdrant-haystack"
-version = "1.0.9"
+version = "1.0.10"
 description = "An integration of Qdrant ANN vector database backend with Haystack"
 authors = ["Kacper Łukawski <kacper.lukawski@qdrant.com>"]
 packages = [
@@ -11,7 +11,7 @@ license = "Apache 2.0"
 
 [tool.poetry.dependencies]
 python = ">=3.8.1,<3.12"
-qdrant-client = ">=1.1.4,<1.5.0"
+qdrant-client = ">=1.1.4,<1.5.0||>=1.5.3"
 farm-haystack = "^1.13.0"
 torch = "<=2.0.0"
 tiktoken = "<=0.4.0"
