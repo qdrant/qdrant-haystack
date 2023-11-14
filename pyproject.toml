@@ -23,12 +23,12 @@ black = "^23.1.0"
 isort = "^5.12.0"
 mypy = "^1.0.1"
 flake8 = "^6.0.0"
-torch = {version = "<=2.0.0", source = "torch_cpu_nightly"}
 farm-haystack = {extras = ["inference"], version = "^1.18.1"}
+torch = {version = "<=2.0.0", source = "torch-cpu"}
 
 [[tool.poetry.source]]
-name = "torch_cpu_nightly"
-url = "https://download.pytorch.org/whl/nightly/cpu"
+name = "torch-cpu"
+url = "https://download.pytorch.org/whl/cpu/"
 priority = "explicit"
 
 [build-system]
