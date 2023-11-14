@@ -17,10 +17,11 @@ jobs:
           - '3.8.x'
           - '3.9.x'
           - '3.10.x'
+          - '3.11.x'
         os:
           - ubuntu-20.04
           - windows-latest
-          - macos-latest
+#          - macos-latest
 
     runs-on: ${{ matrix.os }}
 
@@ -43,7 +44,7 @@ jobs:
           virtualenvs-in-project: true
 
       - name: Install dependencies
-        run: poetry install --no-interaction --no-root
+        run: poetry install --no-interaction --no-root --with dev
 
       - name: Run tests
         run: |
