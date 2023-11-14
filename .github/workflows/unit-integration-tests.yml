@@ -5,6 +5,9 @@ on:
     branches: [ master ]
   pull_request:
 
+env:
+  PYTORCH_MPS_HIGH_WATERMARK_RATIO: 0.7
+
 defaults:
   run:
     shell: bash
