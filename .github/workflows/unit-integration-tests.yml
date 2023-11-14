@@ -5,9 +5,6 @@ on:
     branches: [ master ]
   pull_request:
 
-env:
-  PYTORCH_MPS_HIGH_WATERMARK_RATIO: 0.7
-
 defaults:
   run:
     shell: bash
@@ -21,10 +18,10 @@ jobs:
           - '3.9.x'
           - '3.10.x'
           - '3.11.x'
+          - '3.12.x'
         os:
           - ubuntu-20.04
           - windows-latest
-          - macos-latest
 
     runs-on: ${{ matrix.os }}
 
