@@ -53,5 +53,5 @@ class QdrantToHaystack:
     def point_to_document(self, point: QdrantPoint) -> Document:
         payload = {**point.payload}
         payload["embedding"] = point.vector if hasattr(point, "vector") else None
-        payload["score"] = point.score if hasattr(point, "score") else None,
+        payload["score"] = (point.score if hasattr(point, "score") else None,)
         return Document.from_dict(payload)

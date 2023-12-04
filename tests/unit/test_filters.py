@@ -1,11 +1,12 @@
 from datetime import datetime
 from typing import List
-from haystack import Document
-from haystack.testing.document_store import FilterDocumentsTest
-from qdrant_haystack.document_stores import QdrantDocumentStore
-from haystack.utils.filters import FilterError
 
 import pytest
+from haystack import Document
+from haystack.testing.document_store import FilterDocumentsTest
+from haystack.utils.filters import FilterError
+
+from qdrant_haystack import QdrantDocumentStore
 
 
 class TestQdrantStoreBaseTests(FilterDocumentsTest):

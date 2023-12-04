@@ -1,18 +1,15 @@
 from typing import List
-from haystack import Document
-from haystack.testing.document_store import (
-    TEST_EMBEDDING_1,
-    TEST_EMBEDDING_2,
-    LegacyFilterDocumentsTest,
-)
+
 import pandas as pd
 import pytest
-
+from haystack import Document
 from haystack.document_stores import DocumentStore
+from haystack.testing.document_store import (TEST_EMBEDDING_1,
+                                             TEST_EMBEDDING_2,
+                                             LegacyFilterDocumentsTest)
 from haystack.utils.filters import FilterError
 
-from qdrant_haystack.document_stores.qdrant import QdrantDocumentStore
-
+from qdrant_haystack import QdrantDocumentStore
 
 # The tests below are from haystack.testing.document_store.LegacyFilterDocumentsTest
 # Updated to include `meta` prefix for filter keys wherever necessary
@@ -21,17 +18,7 @@ from qdrant_haystack.document_stores.qdrant import QdrantDocumentStore
 
 class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
     """
-    Utility class to test a Document Store `filter_documents` method using implicit and explicit '$eq' legacy filters
-
-    To use it create a custom test class and override the `document_store` fixture to return your Document Store.
-    Example usage:
-
-    ```python
-    class MyDocumentStoreTest(LegacyFilterDocumentsEqualTest):
-        @pytest.fixture
-        def document_store(self):
-            return MyDocumentStore()
-    ```
+    Utility class to test a Document Store `filter_documents` method using different types of legacy filters
     """
 
     @pytest.fixture
@@ -56,18 +43,6 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
 
         # Check that the sets are equal, meaning the content and IDs match regardless of order
         assert set(doc.id for doc in received) == set(doc.id for doc in expected)
-
-    def test_filter_document_content(
-        self, document_store: DocumentStore, filterable_docs: List[Document]
-    ):
-        document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(
-            filters={"content": "A Foo Document 1"}
-        )
-        self.assert_documents_are_equal(
-            result,
-            [doc for doc in filterable_docs if doc.content == "A Foo Document 1"],
-        )
 
     def test_filter_simple_metadata_value(
         self, document_store: DocumentStore, filterable_docs: List[Document]
@@ -166,15 +141,6 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
             result,
             [doc for doc in filterable_docs if doc.meta.get("page") in ["100", "123"]],
         )
-
-    def test_incorrect_filter_name(
-        self, document_store: DocumentStore, filterable_docs: List[Document]
-    ):
-        document_store.write_documents(filterable_docs)
-        result = document_store.filter_documents(
-            filters={"non_existing_meta_field": ["whatever"]}
-        )
-        self.assert_documents_are_equal(result, [])
 
     def test_incorrect_filter_value(
         self, document_store: DocumentStore, filterable_docs: List[Document]
@@ -305,7 +271,7 @@ class TestQdrantLegacyFilterDocuments(LegacyFilterDocumentsTest):
     ):
         document_store.write_documents(filterable_docs)
         with pytest.raises(FilterError):
-            document_store.filter_documents(filters={"page": {"$gte": "100"}})
+            document_store.filter_documents(filters={"meta.page": {"$gte": "100"}})
 
     @pytest.mark.skip(reason="Dataframe filtering is not supported in Qdrant")
     def test_gte_filter_table(

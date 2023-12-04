@@ -1,3 +1,3 @@
-from qdrant_haystack.document_stores import QdrantDocumentStore
+from qdrant_haystack.qdrant import QdrantDocumentStore
 
 __all__ = ("QdrantDocumentStore",)

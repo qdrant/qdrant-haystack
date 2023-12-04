@@ -1,11 +1,11 @@
 from abc import ABC
 from typing import Any, List, Optional, Union
 
+from haystack.utils.filters import (COMPARISON_OPERATORS, LOGICAL_OPERATORS,
+                                    FilterError)
 from qdrant_client.http import models
 
-from haystack.utils.filters import FilterError, LOGICAL_OPERATORS, COMPARISON_OPERATORS
-
-from qdrant_haystack.document_stores.converters import HaystackToQdrant
+from qdrant_haystack.converters import HaystackToQdrant
 
 COMPARISON_OPERATORS = COMPARISON_OPERATORS.keys()
 LOGICAL_OPERATORS = LOGICAL_OPERATORS.keys()
