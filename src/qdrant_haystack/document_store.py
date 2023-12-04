@@ -1,3 +1,4 @@
+import inspect
 import logging
 from itertools import islice
 from typing import Any, Dict, Generator, List, Optional, Set, Union, cast
@@ -5,11 +6,11 @@ from typing import Any, Dict, Generator, List, Optional, Set, Union, cast
 import numpy as np
 import qdrant_client
 from grpc import RpcError
+from haystack import default_to_dict
 from haystack.dataclasses import Document
-from haystack.document_stores.decorator import document_store
+from haystack.document_stores import DuplicatePolicy
 from haystack.document_stores.errors import (DocumentStoreError,
                                              DuplicateDocumentError)
-from haystack.document_stores.protocols import DuplicatePolicy
 from haystack.utils.filters import convert
 from qdrant_client import grpc
 from qdrant_client.http import models as rest
@@ -40,7 +41,6 @@ def get_batches_from_generator(iterable, n):
         x = tuple(islice(it, n))
 
 
-@document_store
 class QdrantDocumentStore:
     SIMILARITY = {
         "cosine": rest.Distance.COSINE,
@@ -83,6 +83,7 @@ class QdrantDocumentStore:
         wait_result_from_api: bool = True,
         metadata: Optional[dict] = None,
         write_batch_size: int = 100,
+        scroll_size: int = 10_000,
     ):
         super().__init__()
 
@@ -102,7 +103,21 @@ class QdrantDocumentStore:
             metadata=metadata,
         )
 
-        # Store the Qdrant specific attributes
+        # Store the Qdrant client specific attributes
+        self.location = location
+        self.url = url
+        self.port = port
+        self.grpc_port = grpc_port
+        self.prefer_grpc = prefer_grpc
+        self.https = https
+        self.api_key = api_key
+        self.prefix = prefix
+        self.timeout = timeout
+        self.host = host
+        self.path = path
+        self.metadata = metadata
+
+        # Store the Qdrant collection specific attributes
         self.shard_number = shard_number
         self.replication_factor = replication_factor
         self.write_consistency_factor = write_consistency_factor
@@ -113,6 +128,7 @@ class QdrantDocumentStore:
         self.quantization_config = quantization_config
         self.init_from = init_from
         self.wait_result_from_api = wait_result_from_api
+        self.recreate_index = recreate_index
 
         # Make sure the collection is properly set up
         self._set_up_collection(index, embedding_dim, recreate_index, similarity)
@@ -134,6 +150,7 @@ class QdrantDocumentStore:
             embedding_field,
         )
         self.write_batch_size = write_batch_size
+        self.scroll_size = scroll_size
 
     def count_documents(self) -> int:
         try:
@@ -162,6 +179,79 @@ class QdrantDocumentStore:
             )
         )
 
+    def write_documents(
+        self,
+        documents: List[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.FAIL,
+    ):
+        for doc in documents:
+            if not isinstance(doc, Document):
+                raise ValueError(
+                    f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
+                )
+        index = self.index
+        self._set_up_collection(index, self.embedding_dim, False, self.similarity)
+
+        if len(documents) == 0:
+            logger.warning(
+                "Calling QdrantDocumentStore.write_documents() with empty list"
+            )
+            return
+
+        document_objects = self._handle_duplicate_documents(
+            documents=documents,
+            index=index,
+            policy=policy,
+        )
+
+        batched_documents = get_batches_from_generator(
+            document_objects, self.write_batch_size
+        )
+        with tqdm(
+            total=len(document_objects), disable=not self.progress_bar
+        ) as progress_bar:
+            for document_batch in batched_documents:
+                batch = self.haystack_to_qdrant_converter.documents_to_batch(
+                    document_batch,
+                    embedding_field=self.embedding_field,
+                )
+
+                response = self.client.upsert(
+                    collection_name=index,
+                    points=batch,
+                    wait=self.wait_result_from_api,
+                )
+
+                progress_bar.update(self.write_batch_size)
+        return len(document_objects)
+
+    def delete_documents(self, ids: List[str]):
+        ids = [self.haystack_to_qdrant_converter.convert_id(id) for id in ids]
+        try:
+            self.client.delete(
+                collection_name=self.index,
+                points_selector=ids,
+                wait=self.wait_result_from_api,
+            )
+        except KeyError:
+            logger.warning(
+                "Called QdrantDocumentStore.delete_documents() on a non-existing ID",
+            )
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "QdrantDocumentStore":
+        return cls(**data)
+
+    def to_dict(self) -> Dict[str, Any]:
+        params = inspect.signature(self.__init__).parameters
+        # All the __init__ params must be set as attributes
+        # Set as init_parms without default values
+        init_params = {k: getattr(self, k) for k in params}
+        return default_to_dict(
+            self,
+            **init_params,
+        )
+
     def get_documents_generator(
         self,
         filters: Optional[Dict[str, Any]] = None,
@@ -175,7 +265,7 @@ class QdrantDocumentStore:
             records, next_offset = self.client.scroll(
                 collection_name=index,
                 scroll_filter=qdrant_filters,
-                limit=10_000,
+                limit=self.scroll_size,
                 offset=next_offset,
                 with_payload=True,
                 with_vectors=True,
@@ -238,65 +328,6 @@ class QdrantDocumentStore:
                     document.score, self.similarity
                 )
         return results
-
-    def write_documents(
-        self,
-        documents: List[Document],
-        policy: DuplicatePolicy = DuplicatePolicy.FAIL,
-    ):
-        for doc in documents:
-            if not isinstance(doc, Document):
-                raise ValueError(
-                    f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
-                )
-        index = self.index
-        self._set_up_collection(index, self.embedding_dim, False, self.similarity)
-
-        if len(documents) == 0:
-            logger.warning(
-                "Calling QdrantDocumentStore.write_documents() with empty list"
-            )
-            return
-
-        document_objects = self._handle_duplicate_documents(
-            documents=documents,
-            index=index,
-            policy=policy,
-        )
-
-        batched_documents = get_batches_from_generator(
-            document_objects, self.write_batch_size
-        )
-        with tqdm(
-            total=len(document_objects), disable=not self.progress_bar
-        ) as progress_bar:
-            for document_batch in batched_documents:
-                batch = self.haystack_to_qdrant_converter.documents_to_batch(
-                    document_batch,
-                    embedding_field=self.embedding_field,
-                )
-
-                response = self.client.upsert(
-                    collection_name=index,
-                    points=batch,
-                    wait=self.wait_result_from_api,
-                )
-
-                progress_bar.update(self.write_batch_size)
-        return len(document_objects)
-
-    def delete_documents(self, ids: List[str]):
-        ids = [self.haystack_to_qdrant_converter.convert_id(id) for id in ids]
-        try:
-            self.client.delete(
-                collection_name=self.index,
-                points_selector=ids,
-                wait=self.wait_result_from_api,
-            )
-        except KeyError:
-            logger.warning(
-                "Called QdrantDocumentStore.delete_documents() on a non-existing ID",
-            )
 
     def _get_distance(self, similarity: str) -> rest.Distance:
         try:
