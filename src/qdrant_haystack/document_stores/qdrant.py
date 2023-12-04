@@ -1,20 +1,19 @@
+from itertools import islice
 import logging
-from typing import Any, Dict, Generator, List, Optional, Union, cast
+from typing import Any, Dict, Generator, List, Optional, Union, cast, Set
 
 import numpy as np
 import qdrant_client
 from grpc import RpcError
-from haystack import Document, Label
-from haystack.document_stores import BaseDocumentStore
+from haystack.dataclasses import Document
+from haystack.document_stores.decorator import document_store
+from haystack.document_stores.protocols import DuplicatePolicy
+from haystack.utils.filters import convert
 
-try:
-    from haystack.utils.batching import get_batches_from_generator
-except ImportError:
-    from haystack.document_stores.base import get_batches_from_generator
-
-from haystack.errors import DocumentStoreError
-from haystack.nodes import DenseRetriever
-from haystack.schema import FilterType
+from haystack.document_stores.errors import (
+    DocumentStoreError,
+    DuplicateDocumentError,
+)
 from qdrant_client import grpc
 from qdrant_client.http import models as rest
 from qdrant_client.http.exceptions import UnexpectedResponse
@@ -33,7 +32,22 @@ class QdrantStoreError(DocumentStoreError):
     pass
 
 
-class QdrantDocumentStore(BaseDocumentStore):
+FilterType = Dict[str, Union[Dict[str, Any], List[Any], str, int, float, bool]]
+
+
+def get_batches_from_generator(iterable, n):
+    """
+    Batch elements of an iterable into fixed-length chunks or blocks.
+    """
+    it = iter(iterable)
+    x = tuple(islice(it, n))
+    while x:
+        yield x
+        x = tuple(islice(it, n))
+
+
+@document_store
+class QdrantDocumentStore:
     SIMILARITY = {
         "cosine": rest.Distance.COSINE,
         "dot_product": rest.Distance.DOT,
@@ -57,7 +71,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         embedding_dim: int = 768,
         content_field: str = "content",
         name_field: str = "name",
-        embedding_field: str = "vector",
+        embedding_field: str = "embedding",
         similarity: str = "cosine",
         return_embedding: bool = False,
         progress_bar: bool = True,
@@ -74,6 +88,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         init_from: Optional[dict] = None,
         wait_result_from_api: bool = True,
         metadata: Optional[dict] = None,
+        write_batch_size: int = 100,
     ):
         super().__init__()
 
@@ -124,30 +139,40 @@ class QdrantDocumentStore(BaseDocumentStore):
             name_field,
             embedding_field,
         )
+        self.write_batch_size = write_batch_size
 
-    def get_all_documents(
+    def count_documents(self) -> int:
+        try:
+            response = self.client.count(
+                collection_name=self.index,
+            )
+            return response.count
+        except (UnexpectedResponse, ValueError):
+            # Qdrant local raises ValueError if the collection is not found, but
+            # with the remote server UnexpectedResponse is raised. Until that's unified,
+            # we need to catch both.
+            return 0
+
+    def filter_documents(
         self,
-        index: Optional[str] = None,
-        filters: Optional[FilterType] = None,
-        return_embedding: Optional[bool] = None,
-        batch_size: int = 10_000,
-        headers: Optional[Dict[str, str]] = None,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> List[Document]:
+        if filters and not isinstance(filters, dict):
+            raise ValueError("Filter must be a dictionary")
+
+        if filters and "operator" not in filters:
+            filters = convert(filters)
         return list(
-            self.get_all_documents_generator(
-                index, filters, return_embedding, batch_size, headers
+            self.get_documents_generator(
+                filters,
             )
         )
 
-    def get_all_documents_generator(
+    def get_documents_generator(
         self,
-        index: Optional[str] = None,
-        filters: Optional[FilterType] = None,
-        return_embedding: Optional[bool] = None,
-        batch_size: int = 10_000,
-        headers: Optional[Dict[str, str]] = None,
+        filters: Optional[Dict[str, Any]] = None,
     ) -> Generator[Document, None, None]:
-        index = index or self.index
+        index = self.index
         qdrant_filters = self.qdrant_filter_converter.convert(filters)
 
         next_offset = None
@@ -156,7 +181,7 @@ class QdrantDocumentStore(BaseDocumentStore):
             records, next_offset = self.client.scroll(
                 collection_name=index,
                 scroll_filter=qdrant_filters,
-                limit=batch_size,
+                limit=10_000,
                 offset=next_offset,
                 with_payload=True,
                 with_vectors=True,
@@ -170,81 +195,26 @@ class QdrantDocumentStore(BaseDocumentStore):
             for record in records:
                 yield self.qdrant_to_haystack.point_to_document(record)
 
-    def get_document_by_id(
-        self,
-        id: str,
-        index: Optional[str] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> Optional[Document]:
-        documents = self.get_documents_by_id([id], index, headers)
-        if 0 == len(documents):
-            return None
-        return documents[0]
-
     def get_documents_by_id(
         self,
         ids: List[str],
         index: Optional[str] = None,
-        batch_size: int = 10_000,
-        headers: Optional[Dict[str, str]] = None,
     ) -> List[Document]:
         index = index or self.index
 
         documents: List[Document] = []
 
-        next_offset = None
-        stop_scrolling = False
-        scroll_filter = self.qdrant_filter_converter.convert(None, ids)
-        while not stop_scrolling:
-            records, next_offset = self.client.scroll(
-                collection_name=index,
-                scroll_filter=scroll_filter,
-                limit=batch_size,
-                offset=next_offset,
-                with_payload=True,
-                with_vectors=True,
-            )
-            stop_scrolling = next_offset is None or (
-                isinstance(next_offset, grpc.PointId)
-                and next_offset.num == 0
-                and next_offset.uuid == ""
-            )
+        ids = [self.haystack_to_qdrant_converter.convert_id(id) for id in ids]
+        records = self.client.retrieve(
+            collection_name="Document",
+            ids=ids,
+            with_payload=True,
+            with_vectors=True,
+        )
 
-            for record in records:
-                documents.append(self.qdrant_to_haystack.point_to_document(record))
-
+        for record in records:
+            documents.append(self.qdrant_to_haystack.point_to_document(record))
         return documents
-
-    def get_document_count(
-        self,
-        filters: Optional[FilterType] = None,
-        index: Optional[str] = None,
-        only_documents_without_embedding: bool = False,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> int:
-        index = index or self.index
-        qdrant_filters = self.qdrant_filter_converter.convert(filters)
-
-        try:
-            response = self.client.count(
-                collection_name=index,
-                count_filter=qdrant_filters,
-            )
-            return response.count
-        except (UnexpectedResponse, ValueError):
-            # Qdrant local raises ValueError if the collection is not found, but
-            # with the remote server UnexpectedResponse is raised. Until that's unified,
-            # we need to catch both.
-            return 0
-
-    def get_embedding_count(
-        self, filters: Optional[FilterType] = None, index: Optional[str] = None
-    ) -> int:
-        """
-        Return the number of embeddings in the document store, which is the same as the
-        number of documents since every document has a default embedding.
-        """
-        return self.get_document_count(filters, index)
 
     def query_by_embedding(
         self,
@@ -277,20 +247,16 @@ class QdrantDocumentStore(BaseDocumentStore):
 
     def write_documents(
         self,
-        documents: Union[List[dict], List[Document]],
-        index: Optional[str] = None,
-        batch_size: int = 10_000,
-        duplicate_documents: Optional[str] = None,
-        headers: Optional[Dict[str, str]] = None,
+        documents: List[Document],
+        policy: DuplicatePolicy = DuplicatePolicy.FAIL,
     ):
-        index = index or self.index
+        for doc in documents:
+            if not isinstance(doc, Document):
+                raise ValueError(
+                    f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
+                )
+        index = self.index
         self._set_up_collection(index, self.embedding_dim, False, self.similarity)
-        field_map = self._create_document_field_map()
-
-        duplicate_documents = duplicate_documents or self.duplicate_documents
-        assert (
-            duplicate_documents in self.duplicate_documents_options
-        ), f"duplicate_documents parameter must be {', '.join(self.duplicate_documents_options)}"
 
         if len(documents) == 0:
             logger.warning(
@@ -298,17 +264,15 @@ class QdrantDocumentStore(BaseDocumentStore):
             )
             return
 
-        document_objects = [
-            Document.from_dict(d, field_map=field_map) if isinstance(d, dict) else d
-            for d in documents
-        ]
         document_objects = self._handle_duplicate_documents(
-            documents=document_objects,
+            documents=documents,
             index=index,
-            duplicate_documents=duplicate_documents,
+            policy=policy,
         )
 
-        batched_documents = get_batches_from_generator(document_objects, batch_size)
+        batched_documents = get_batches_from_generator(
+            document_objects, self.write_batch_size
+        )
         with tqdm(
             total=len(document_objects), disable=not self.progress_bar
         ) as progress_bar:
@@ -316,9 +280,6 @@ class QdrantDocumentStore(BaseDocumentStore):
                 batch = self.haystack_to_qdrant_converter.documents_to_batch(
                     document_batch,
                     embedding_field=self.embedding_field,
-                    embedding_dim=self.embedding_dim,
-                    field_map=self._create_document_field_map(),
-                    fill_missing_embeddings=True,
                 )
 
                 response = self.client.upsert(
@@ -327,172 +288,21 @@ class QdrantDocumentStore(BaseDocumentStore):
                     wait=self.wait_result_from_api,
                 )
 
-                # TODO: handle errors in response
-                progress_bar.update(batch_size)
+                progress_bar.update(self.write_batch_size)
+        return len(document_objects)
 
-    def update_embeddings(
-        self,
-        retriever: DenseRetriever,
-        index: Optional[str] = None,
-        update_existing_embeddings: bool = True,
-        filters: Optional[FilterType] = None,
-        batch_size: int = 32,
-        headers: Optional[Dict[str, str]] = None,
-    ):
-        """
-        :param retriever:
-        :param index:
-        :param update_existing_embeddings: Not used by QdrantDocumentStore, as all the points
-                                           must have a corresponding vector in Qdrant.
-        :param filters:
-        :param batch_size:
-        :param headers:
-        :return:
-        """
-        index = index or self.index
-
-        document_count = self.get_document_count(index=index, filters=filters)
-        if document_count == 0:
-            logger.warning(
-                "Calling DocumentStore.update_embeddings() on an empty index"
+    def delete_documents(self, ids: List[str]):
+        ids = [self.haystack_to_qdrant_converter.convert_id(id) for id in ids]
+        try:
+            self.client.delete(
+                collection_name=self.index,
+                points_selector=ids,
+                wait=self.wait_result_from_api,
             )
-            return
-
-        logger.info("Updating embeddings for %s docs...", document_count)
-
-        doc_generator = self.get_all_documents_generator(
-            index=index,
-            filters=filters,
-            batch_size=batch_size,
-            headers=headers,
-        )
-
-        with tqdm(
-            total=document_count, position=0, unit=" Docs", desc="Updating embeddings"
-        ) as progress_bar:
-            for document_batch in get_batches_from_generator(doc_generator, batch_size):
-                embeddings = retriever.embed_documents(document_batch)
-                self._validate_embeddings_shape(
-                    embeddings=embeddings,
-                    num_documents=len(document_batch),
-                    embedding_dim=self.embedding_dim,
-                )
-
-                # Overwrite the existing embeddings in that batch
-                for doc, embedding in zip(document_batch, embeddings):
-                    doc.embedding = embedding
-
-                # Upsert points into Qdrant and overwrite the entries
-                batch = self.haystack_to_qdrant_converter.documents_to_batch(
-                    document_batch,
-                    embedding_field=self.embedding_field,
-                    embedding_dim=self.embedding_dim,
-                    field_map=self._create_document_field_map(),
-                )
-                response = self.client.upsert(
-                    collection_name=index,
-                    points=batch,
-                )
-
-                progress_bar.update(batch_size)
-
-    def update_document_meta(
-        self, id: str, meta: Dict[str, Any], index: Optional[str] = None
-    ):
-        index = index or self.index
-        document = self.get_document_by_id(id, index)
-        if document is None:
+        except KeyError:
             logger.warning(
-                "Requested to update document meta for non-existing id %s", id
+                "Called QdrantDocumentStore.delete_documents() on a non-existing ID",
             )
-            return
-
-        document.meta = meta
-
-        # Upsert point into Qdrant and overwrite the entry. Batch is used to keep
-        # the same logic as for .update_embeddings.
-        batch = self.haystack_to_qdrant_converter.documents_to_batch(
-            [document],
-            embedding_field=self.embedding_field,
-            embedding_dim=self.embedding_dim,
-            field_map=self._create_document_field_map(),
-        )
-        self.client.upsert(
-            collection_name=index,
-            points=batch,
-            wait=self.wait_result_from_api,
-        )
-
-    def delete_documents(
-        self,
-        index: Optional[str] = None,
-        ids: Optional[List[str]] = None,
-        filters: Optional[FilterType] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ):
-        index = index or self.index
-        qdrant_filters = self.qdrant_filter_converter.convert(filters, ids)
-
-        self.client.delete(
-            collection_name=index,
-            points_selector=qdrant_filters,
-            wait=self.wait_result_from_api,
-        )
-
-    def delete_all_documents(
-        self,
-        index: Optional[str] = None,
-        filters: Optional[FilterType] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ):
-        index = index or self.index
-        qdrant_filters = self.qdrant_filter_converter.convert(filters)
-
-        self.client.delete(
-            collection_name=index,
-            points_selector=qdrant_filters,
-            wait=self.wait_result_from_api,
-        )
-
-    def delete_index(self, index: str):
-        self.client.delete_collection(collection_name=index)
-
-    def get_all_labels(
-        self,
-        index: Optional[str] = None,
-        filters: Optional[FilterType] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ) -> List[Label]:
-        raise NotImplementedError("Qdrant does not support labels yet")
-
-    def get_label_count(
-        self, index: Optional[str] = None, headers: Optional[Dict[str, str]] = None
-    ) -> int:
-        raise NotImplementedError("Qdrant does not support labels yet")
-
-    def write_labels(
-        self,
-        labels: Union[List[Label], List[dict]],
-        index: Optional[str] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ):
-        raise NotImplementedError("Qdrant does not support labels yet")
-
-    def delete_labels(
-        self,
-        index: Optional[str] = None,
-        ids: Optional[List[str]] = None,
-        filters: Optional[FilterType] = None,
-        headers: Optional[Dict[str, str]] = None,
-    ):
-        raise NotImplementedError("Qdrant does not support labels yet")
-
-    def _create_document_field_map(self) -> Dict:
-        return {
-            self.name_field: "name",
-            self.content_field: "content",
-            self.embedding_field: "embedding",
-        }
 
     def _get_distance(self, similarity: str) -> rest.Distance:
         try:
@@ -569,3 +379,71 @@ class QdrantDocumentStore(BaseDocumentStore):
             quantization_config=self.quantization_config,
             init_from=self.init_from,
         )
+
+    def _handle_duplicate_documents(
+        self,
+        documents: List[Document],
+        index: Optional[str] = None,
+        policy: DuplicatePolicy = None,
+    ):
+        """
+        Checks whether any of the passed documents is already existing in the chosen index and returns a list of
+        documents that are not in the index yet.
+
+        :param documents: A list of Haystack Document objects.
+        :param index: name of the index
+        :param duplicate_documents: Handle duplicates document based on parameter options.
+                                    Parameter options : ( 'skip','overwrite','fail')
+                                    skip (default option): Ignore the duplicates documents
+                                    overwrite: Update any existing documents with the same ID when adding documents.
+                                    fail: an error is raised if the document ID of the document being added already
+                                    exists.
+        :param headers: Custom HTTP headers to pass to document store client if supported (e.g. {'Authorization': 'Basic YWRtaW46cm9vdA=='} for basic authentication)
+        :return: A list of Haystack Document objects.
+        """
+
+        index = index or self.index
+        if policy in (DuplicatePolicy.SKIP, DuplicatePolicy.FAIL):
+            documents = self._drop_duplicate_documents(documents, index)
+            documents_found = self.get_documents_by_id(
+                ids=[doc.id for doc in documents], index=index
+            )
+            ids_exist_in_db: List[str] = [doc.id for doc in documents_found]
+
+            if len(ids_exist_in_db) > 0 and policy == DuplicatePolicy.FAIL:
+                raise DuplicateDocumentError(
+                    f"Document with ids '{', '.join(ids_exist_in_db)} already exists"
+                    f" in index = '{index}'."
+                )
+
+            documents = list(
+                filter(lambda doc: doc.id not in ids_exist_in_db, documents)
+            )
+
+        return documents
+
+    def _drop_duplicate_documents(
+        self, documents: List[Document], index: Optional[str] = None
+    ) -> List[Document]:
+        """
+        Drop duplicates documents based on same hash ID
+
+        :param documents: A list of Haystack Document objects.
+        :param index: name of the index
+        :return: A list of Haystack Document objects.
+        """
+        _hash_ids: Set = set()
+        _documents: List[Document] = []
+
+        for document in documents:
+            if document.id in _hash_ids:
+                logger.info(
+                    "Duplicate Documents: Document with id '%s' already exists in index '%s'",
+                    document.id,
+                    index or self.index,
+                )
+                continue
+            _documents.append(document)
+            _hash_ids.add(document.id)
+
+        return _documents

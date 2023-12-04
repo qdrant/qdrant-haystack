@@ -2,7 +2,7 @@ import uuid
 from typing import Dict, List, Union
 
 import numpy as np
-from haystack import Document
+from haystack.dataclasses import Document
 from qdrant_client.http import models as rest
 
 
@@ -16,24 +16,20 @@ class HaystackToQdrant:
         documents: List[Document],
         *,
         embedding_field: str,
-        embedding_dim: int,
-        field_map: Dict[str, str],
-        fill_missing_embeddings: bool = False
-    ) -> rest.Batch:
-        payloads = [doc.to_dict(field_map=field_map) for doc in documents]
-        vectors = [payload.pop(embedding_field) for payload in payloads]
-        if fill_missing_embeddings:
-            vectors = [
-                vector if vector is not None else np.random.random(embedding_dim)
-                for vector in vectors
-            ]
-        vectors = [vector.tolist() for vector in vectors]
-        ids = [self.convert_id(payload.get("id")) for payload in payloads]
-        return rest.Batch(
-            ids=ids,
-            vectors=vectors,
-            payloads=payloads,
-        )
+    ) -> List[rest.PointStruct]:
+        points = []
+        for document in documents:
+            payload = document.to_dict(flatten=False)
+            vector = payload.pop(embedding_field) or {}
+            id = self.convert_id(payload.get("id"))
+
+            point = rest.PointStruct(
+                payload=payload,
+                vector=vector,
+                id=id,
+            )
+            points.append(point)
+        return points
 
     def convert_id(self, id: str) -> str:
         """
@@ -56,12 +52,6 @@ class QdrantToHaystack:
 
     def point_to_document(self, point: QdrantPoint) -> Document:
         payload = {**point.payload}
-        return Document(
-            content=payload.pop(self.content_field),
-            content_type=payload.pop("content_type"),
-            id=payload.pop("id"),
-            meta=payload.pop("meta"),
-            score=point.score if hasattr(point, "score") else None,
-            embedding=np.array(point.vector) if point.vector else None,
-            id_hash_keys=payload.pop("id_hash_keys"),
-        )
+        payload["embedding"] = point.vector if hasattr(point, "vector") else None
+        payload["score"] = point.score if hasattr(point, "score") else None,
+        return Document.from_dict(payload)

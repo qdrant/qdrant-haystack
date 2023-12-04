@@ -1,296 +1,147 @@
+from datetime import datetime
+from typing import List
+from haystack import Document
+from haystack.testing.document_store import FilterDocumentsTest
+from qdrant_haystack.document_stores import QdrantDocumentStore
+from haystack.utils.filters import FilterError
+
 import pytest
-from qdrant_client.http import models as rest
-
-from qdrant_haystack.document_stores.filters import QdrantFilterConverter
 
 
-@pytest.fixture
-def qdrant_converter() -> QdrantFilterConverter:
-    return QdrantFilterConverter()
+class TestQdrantStoreBaseTests(FilterDocumentsTest):
+    @pytest.fixture
+    def document_store(self) -> QdrantDocumentStore:
+        yield QdrantDocumentStore(
+            ":memory:",
+            recreate_index=True,
+            return_embedding=True,
+            wait_result_from_api=True,
+        )
 
+    def assert_documents_are_equal(
+        self, received: List[Document], expected: List[Document]
+    ):
+        """
+        Assert that two lists of Documents are equal.
+        This is used in every test.
+        """
 
-def test_qdrant_filter_converter_none(qdrant_converter):
-    converted_filter = qdrant_converter.convert(None)
+        # Check that the lengths of the lists are the same
+        assert len(received) == len(expected)
 
-    assert converted_filter is None
+        # Check that the sets are equal, meaning the content and IDs match regardless of order
+        assert set(doc.id for doc in received) == set(doc.id for doc in expected)
 
-
-def test_qdrant_filter_converter_empty_dict(qdrant_converter):
-    converted_filter = qdrant_converter.convert(dict())
-    target_filter = rest.Filter()
-
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
-
-
-def test_qdrant_filter_converter_empty_list(qdrant_converter):
-    converted_filter = qdrant_converter.convert(list())
-    target_filter = rest.Filter()
-
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
-
-
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[({"type": "article"},), ({"type": {"$eq": "article"}},)],
-)
-def test_qdrant_filter_converter_comparison_operation(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        must=[
-            rest.FieldCondition(
-                key="meta.type",
-                match=rest.MatchValue(value="article"),
-            ),
-        ]
-    )
-
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
-
-
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[
-        ({"item_id": ["item_1", "item_2"]},),
-        ({"item_id": {"$in": ["item_1", "item_2"]}},),
-    ],
-)
-def test_qdrant_filter_converter_comparison_in(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        should=[
-            rest.FieldCondition(
-                key="meta.item_id",
-                match=rest.MatchValue(value="item_1"),
-            ),
-            rest.FieldCondition(
-                key="meta.item_id",
-                match=rest.MatchValue(value="item_2"),
-            ),
-        ]
-    )
-
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
-
-
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[({"type": {"$ne": "article"}},)],
-)
-def test_qdrant_filter_converter_ne_operation(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        must_not=[
-            rest.FieldCondition(
-                key="meta.type",
-                match=rest.MatchValue(value="article"),
-            ),
-        ]
-    )
-
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
-
-
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[
-        ({"item_id": {"$nin": ["item_1", "item_2"]}},),
-    ],
-)
-def test_qdrant_filter_converter_nin_operation(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        must_not=[
-            rest.FieldCondition(
-                key="meta.item_id",
-                match=rest.MatchValue(value="item_1"),
-            ),
-            rest.FieldCondition(
-                key="meta.item_id",
-                match=rest.MatchValue(value="item_2"),
-            ),
-        ]
-    )
-
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
-
-
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[({"type": {"$gt": 1.0}},)],
-)
-def test_qdrant_filter_converter_gt_operation(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        must=[
-            rest.FieldCondition(
-                key="meta.type",
-                range=rest.Range(gt=1.0),
-            ),
-        ]
-    )
-
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
-
-
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[({"type": {"$gte": 2.0}},)],
-)
-def test_qdrant_filter_converter_gte_operation(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        must=[
-            rest.FieldCondition(
-                key="meta.type",
-                range=rest.Range(gte=2.0),
-            ),
-        ]
-    )
-
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
-
-
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[({"type": {"$lt": 3.0}},)],
-)
-def test_qdrant_filter_converter_lt_operation(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        must=[
-            rest.FieldCondition(
-                key="meta.type",
-                range=rest.Range(lt=3.0),
-            ),
-        ]
-    )
-
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
-
-
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[({"type": {"$lte": 4.0}},)],
-)
-def test_qdrant_filter_converter_lte_operation(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        must=[
-            rest.FieldCondition(
-                key="meta.type",
-                range=rest.Range(lte=4.0),
-            ),
-        ]
-    )
-
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
-
-
-def test_qdrant_filter_converter_has_id(qdrant_converter):
-    converted_filter = qdrant_converter.convert(None, ["1", "2", "3"])
-    target_filter = rest.Filter(
-        must=[
-            rest.HasIdCondition(
-                has_id=[
-                    "1a815aaf5fc85fe9879270357cef766f",
-                    "2bc29abd932c57ec9a3f7f26fe0cf80d",
-                    "0604d56b50be526aa7b47657ebb52f38",
+    def test_not_operator(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        result = document_store.filter_documents(
+            filters={
+                "operator": "NOT",
+                "conditions": [
+                    {"field": "meta.number", "operator": "==", "value": 100},
+                    {"field": "meta.name", "operator": "==", "value": "name_0"},
                 ],
-            ),
-        ]
-    )
+            }
+        )
+        self.assert_documents_are_equal(
+            result,
+            [
+                d
+                for d in filterable_docs
+                if (d.meta.get("number") != 100 and d.meta.get("name") != "name_0")
+            ],
+        )
 
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
+    # ======== OVERRIDES FOR NONE VALUED FILTERS ========
 
-
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[({"$not": {"field_name": 212}},)],
-)
-def test_qdrant_filter_converter_not_operation(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        must_not=[
-            rest.FieldCondition(
-                key="meta.field_name",
-                match=rest.MatchValue(value=212),
+    def test_comparison_equal_with_none(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            result = document_store.filter_documents(
+                filters={"field": "meta.number", "operator": "==", "value": None}
             )
-        ]
-    )
+            self.assert_documents_are_equal(
+                result, [d for d in filterable_docs if d.meta.get("number") is None]
+            )
 
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
+    def test_comparison_not_equal_with_none(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            result = document_store.filter_documents(
+                filters={"field": "meta.number", "operator": "!=", "value": None}
+            )
+            self.assert_documents_are_equal(
+                result, [d for d in filterable_docs if d.meta.get("number") is not None]
+            )
 
+    def test_comparison_greater_than_with_none(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            result = document_store.filter_documents(
+                filters={"field": "meta.number", "operator": ">", "value": None}
+            )
+            self.assert_documents_are_equal(result, [])
 
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[({"$or": [{"field_name": 212}, {"field_name": 211}]},)],
-)
-def test_qdrant_filter_converter_or_operation(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        should=[
-            rest.FieldCondition(
-                key="meta.field_name",
-                match=rest.MatchValue(value=212),
-            ),
-            rest.FieldCondition(
-                key="meta.field_name",
-                match=rest.MatchValue(value=211),
-            ),
-        ]
-    )
+    def test_comparison_greater_than_equal_with_none(
+        self, document_store, filterable_docs
+    ):
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            result = document_store.filter_documents(
+                filters={"field": "meta.number", "operator": ">=", "value": None}
+            )
+            self.assert_documents_are_equal(result, [])
 
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
+    def test_comparison_less_than_with_none(self, document_store, filterable_docs):
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            result = document_store.filter_documents(
+                filters={"field": "meta.number", "operator": "<", "value": None}
+            )
+            self.assert_documents_are_equal(result, [])
 
+    def test_comparison_less_than_equal_with_none(
+        self, document_store, filterable_docs
+    ):
+        document_store.write_documents(filterable_docs)
+        with pytest.raises(FilterError):
+            result = document_store.filter_documents(
+                filters={"field": "meta.number", "operator": "<=", "value": None}
+            )
+            self.assert_documents_are_equal(result, [])
 
-@pytest.mark.parametrize(
-    argnames=["filter_term"],
-    argvalues=[({"$and": [{"field_name": 212}, {"field_name": 211}]},)],
-)
-def test_qdrant_filter_converter_and_operation(qdrant_converter, filter_term):
-    converted_filter = qdrant_converter.convert(filter_term)
-    target_filter = rest.Filter(
-        must=[
-            rest.FieldCondition(
-                key="meta.field_name",
-                match=rest.MatchValue(value=212),
-            ),
-            rest.FieldCondition(
-                key="meta.field_name",
-                match=rest.MatchValue(value=211),
-            ),
-        ]
-    )
+    # ======== ========================== ========
 
-    assert converted_filter is not None
-    assert isinstance(converted_filter, rest.Filter)
-    assert target_filter == converted_filter
+    @pytest.mark.skip(reason="Qdrant doesn't support comparision with dataframe")
+    def test_comparison_equal_with_dataframe(self, document_store, filterable_docs):
+        ...
 
+    @pytest.mark.skip(reason="Qdrant doesn't support comparision with dataframe")
+    def test_comparison_not_equal_with_dataframe(self, document_store, filterable_docs):
+        ...
 
-# TODO: test has_id filter combined with more advanced filters
+    @pytest.mark.skip(reason="Qdrant doesn't support comparision with Dates")
+    def test_comparison_greater_than_with_iso_date(
+        self, document_store, filterable_docs
+    ):
+        ...
+
+    @pytest.mark.skip(reason="Qdrant doesn't support comparision with Dates")
+    def test_comparison_greater_than_equal_with_iso_date(
+        self, document_store, filterable_docs
+    ):
+        ...
+
+    @pytest.mark.skip(reason="Qdrant doesn't support comparision with Dates")
+    def test_comparison_less_than_with_iso_date(self, document_store, filterable_docs):
+        ...
+
+    @pytest.mark.skip(reason="Qdrant doesn't support comparision with Dates")
+    def test_comparison_less_than_equal_with_iso_date(
+        self, document_store, filterable_docs
+    ):
+        ...
+
+    @pytest.mark.skip(reason="Cannot distinguish errors yet")
+    def test_missing_top_level_operator_key(self, document_store, filterable_docs):
+        ...
