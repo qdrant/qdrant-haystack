@@ -1,7 +1,7 @@
 import inspect
 import logging
 from itertools import islice
-from typing import Any, Dict, Generator, List, Optional, Set, Union, cast
+from typing import Any, Dict, Generator, List, Optional, Set, Union
 
 import numpy as np
 import qdrant_client
@@ -302,31 +302,32 @@ class QdrantDocumentStore:
 
     def query_by_embedding(
         self,
-        query_emb: np.ndarray,
-        filters: Optional[FilterType] = None,
+        query_embedding: List[float],
+        filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
-        index: Optional[str] = None,
-        return_embedding: Optional[bool] = None,
-        headers: Optional[Dict[str, str]] = None,
         scale_score: bool = True,
+        return_embedding: bool = True,
     ) -> List[Document]:
         index = index or self.index
         qdrant_filters = self.qdrant_filter_converter.convert(filters)
 
         points = self.client.search(
             collection_name=index,
-            query_vector=cast(list, query_emb.tolist()),
+            query_vector=query_embedding,
             query_filter=qdrant_filters,
             limit=top_k,
-            with_vectors=return_embedding or True,
+            with_vectors=return_embedding,
         )
 
         results = [self.qdrant_to_haystack.point_to_document(point) for point in points]
         if scale_score:
             for document in results:
-                document.score = self.scale_to_unit_interval(
-                    document.score, self.similarity
-                )
+                score = document.score
+                if self.similarity == "cosine":
+                    score = (score + 1) / 2
+                else:
+                    score = float(1 / (1 + np.exp(-score / 100)))
+                document.score = score
         return results
 
     def _get_distance(self, similarity: str) -> rest.Distance:
