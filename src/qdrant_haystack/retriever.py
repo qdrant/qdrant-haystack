@@ -17,7 +17,7 @@ class QdrantRetriever:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         scale_score: bool = True,
-        return_embedding: bool = True,
+        return_embedding: bool = False,
     ):
         """
         Create a QdrantRetriever component.
@@ -36,12 +36,12 @@ class QdrantRetriever:
                 "document_store must be an instance of QdrantDocumentStore"
             )
 
-        self.document_store = document_store
+        self._document_store = document_store
 
-        self.filters = filters
-        self.top_k = top_k
-        self.scale_score = scale_score
-        self.return_embedding = return_embedding
+        self._filters = filters
+        self._top_k = top_k
+        self._scale_score = scale_score
+        self._return_embedding = return_embedding
 
     def to_dict(self) -> Dict[str, Any]:
         """
@@ -49,13 +49,13 @@ class QdrantRetriever:
         """
         d = default_to_dict(
             self,
-            document_store=self.document_store,
-            filters=self.filters,
-            top_k=self.top_k,
-            scale_score=self.scale_score,
-            return_embedding=self.return_embedding,
+            document_store=self._document_store,
+            filters=self._filters,
+            top_k=self._top_k,
+            scale_score=self._scale_score,
+            return_embedding=self._return_embedding,
         )
-        d["init_parameters"]["document_store"] = self.document_store.to_dict()
+        d["init_parameters"]["document_store"] = self._document_store.to_dict()
 
         return d
 
@@ -90,12 +90,12 @@ class QdrantRetriever:
         :return: The retrieved documents.
 
         """
-        docs = self.document_store.query_by_embedding(
+        docs = self._document_store.query_by_embedding(
             query_embedding=query_embedding,
-            filters=filters or self.filters,
-            top_k=top_k or self.top_k,
-            scale_score=scale_score or self.scale_score,
-            return_embedding=return_embedding or self.return_embedding,
+            filters=filters or self._filters,
+            top_k=top_k or self._top_k,
+            scale_score=scale_score or self._scale_score,
+            return_embedding=return_embedding or self._return_embedding,
         )
 
         return docs

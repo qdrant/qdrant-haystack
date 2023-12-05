@@ -6,7 +6,7 @@ from typing import Any, Dict, Generator, List, Optional, Set, Union
 import numpy as np
 import qdrant_client
 from grpc import RpcError
-from haystack import default_to_dict
+from haystack import default_from_dict, default_to_dict
 from haystack.dataclasses import Document
 from haystack.document_stores import DuplicatePolicy
 from haystack.document_stores.errors import (DocumentStoreError,
@@ -189,8 +189,7 @@ class QdrantDocumentStore:
                 raise ValueError(
                     f"DocumentStore.write_documents() expects a list of Documents but got an element of {type(doc)}."
                 )
-        index = self.index
-        self._set_up_collection(index, self.embedding_dim, False, self.similarity)
+        self._set_up_collection(self.index, self.embedding_dim, False, self.similarity)
 
         if len(documents) == 0:
             logger.warning(
@@ -200,7 +199,7 @@ class QdrantDocumentStore:
 
         document_objects = self._handle_duplicate_documents(
             documents=documents,
-            index=index,
+            index=self.index,
             policy=policy,
         )
 
@@ -217,7 +216,7 @@ class QdrantDocumentStore:
                 )
 
                 response = self.client.upsert(
-                    collection_name=index,
+                    collection_name=self.index,
                     points=batch,
                     wait=self.wait_result_from_api,
                 )
@@ -240,7 +239,7 @@ class QdrantDocumentStore:
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "QdrantDocumentStore":
-        return cls(**data)
+        return default_from_dict(cls, data)
 
     def to_dict(self) -> Dict[str, Any]:
         params = inspect.signature(self.__init__).parameters
@@ -290,7 +289,7 @@ class QdrantDocumentStore:
 
         ids = [self.haystack_to_qdrant_converter.convert_id(id) for id in ids]
         records = self.client.retrieve(
-            collection_name="Document",
+            collection_name=index,
             ids=ids,
             with_payload=True,
             with_vectors=True,
@@ -306,13 +305,12 @@ class QdrantDocumentStore:
         filters: Optional[Dict[str, Any]] = None,
         top_k: int = 10,
         scale_score: bool = True,
-        return_embedding: bool = True,
+        return_embedding: bool = False,
     ) -> List[Document]:
-        index = index or self.index
         qdrant_filters = self.qdrant_filter_converter.convert(filters)
 
         points = self.client.search(
-            collection_name=index,
+            collection_name=self.index,
             query_vector=query_embedding,
             query_filter=qdrant_filters,
             limit=top_k,
