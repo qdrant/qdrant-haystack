@@ -101,13 +101,13 @@ class TestQdrantRetriever(FilterableDocsFixtureMixin):
 
         results: List[Document] = retriever.run(query_embedding=_random_embeddings(768))
 
-        assert len(results) == 10
+        assert len(results["documents"]) == 10
 
         results = retriever.run(
             query_embedding=_random_embeddings(768), top_k=5, return_embedding=False
         )
 
-        assert len(results) == 5
+        assert len(results["documents"]) == 5
 
-        for result in results:
-            assert result.embedding is None
+        for document in results["documents"]:
+            assert document.embedding is None

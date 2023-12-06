@@ -98,4 +98,4 @@ class QdrantRetriever:
             return_embedding=return_embedding or self._return_embedding,
         )
 
-        return docs
+        return {"documents": docs}
