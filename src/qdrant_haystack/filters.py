@@ -1,8 +1,7 @@
 from abc import ABC
 from typing import Any, List, Optional, Union
 
-from haystack.utils.filters import (COMPARISON_OPERATORS, LOGICAL_OPERATORS,
-                                    FilterError)
+from haystack.utils.filters import COMPARISON_OPERATORS, LOGICAL_OPERATORS, FilterError
 from qdrant_client.http import models
 
 from qdrant_haystack.converters import HaystackToQdrant

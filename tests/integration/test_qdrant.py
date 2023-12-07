@@ -4,9 +4,11 @@ import pytest
 from haystack import Document
 from haystack.document_stores import DuplicatePolicy
 from haystack.document_stores.errors import DuplicateDocumentError
-from haystack.testing.document_store import (CountDocumentsTest,
-                                             DeleteDocumentsTest,
-                                             WriteDocumentsTest)
+from haystack.testing.document_store import (
+    CountDocumentsTest,
+    DeleteDocumentsTest,
+    WriteDocumentsTest,
+)
 
 from qdrant_haystack import QdrantDocumentStore
 

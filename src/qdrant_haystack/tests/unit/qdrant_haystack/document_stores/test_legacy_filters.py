@@ -4,9 +4,11 @@ import pandas as pd
 import pytest
 from haystack import Document
 from haystack.document_stores import DocumentStore
-from haystack.testing.document_store import (TEST_EMBEDDING_1,
-                                             TEST_EMBEDDING_2,
-                                             LegacyFilterDocumentsTest)
+from haystack.testing.document_store import (
+    TEST_EMBEDDING_1,
+    TEST_EMBEDDING_2,
+    LegacyFilterDocumentsTest,
+)
 from haystack.utils.filters import FilterError
 
 from qdrant_haystack.document_store import QdrantDocumentStore

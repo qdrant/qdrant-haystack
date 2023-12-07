@@ -1,8 +1,10 @@
 from typing import List
 
 from haystack.dataclasses import Document
-from haystack.testing.document_store import (FilterableDocsFixtureMixin,
-                                             _random_embeddings)
+from haystack.testing.document_store import (
+    FilterableDocsFixtureMixin,
+    _random_embeddings,
+)
 
 from qdrant_haystack import QdrantDocumentStore
 from qdrant_haystack.retriever import QdrantRetriever
