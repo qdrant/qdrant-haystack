@@ -1,5 +1,9 @@
 # qdrant-haystack
 
+> [!IMPORTANT]  
+> The V2 implementation of `qdrant-haystack` has been moved to [deepset-ai/haystack-core-integrations](https://github.com/deepset-ai/haystack-core-integrations).
+> Find the latest documentation [here](https://haystack.deepset.ai/integrations/qdrant-document-store).
+
 An integration of [Qdrant](https://qdrant.tech) vector database with [Haystack](https://haystack.deepset.ai/)
 by [deepset](https://www.deepset.ai).
 
