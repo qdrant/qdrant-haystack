@@ -74,6 +74,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         init_from: Optional[dict] = None,
         wait_result_from_api: bool = True,
         metadata: Optional[dict] = None,
+        batch_size: int = 10_000,
     ):
         super().__init__()
 
@@ -108,6 +109,7 @@ class QdrantDocumentStore(BaseDocumentStore):
         # Make sure the collection is properly set up
         self._set_up_collection(index, embedding_dim, recreate_index, similarity)
 
+        self.batch_size = batch_size
         self.embedding_dim = embedding_dim
         self.content_field = content_field
         self.name_field = name_field
@@ -130,9 +132,10 @@ class QdrantDocumentStore(BaseDocumentStore):
         index: Optional[str] = None,
         filters: Optional[FilterType] = None,
         return_embedding: Optional[bool] = None,
-        batch_size: int = 10_000,
+        batch_size: Optional[int] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> List[Document]:
+        batch_size = batch_size or self.batch_size
         return list(
             self.get_all_documents_generator(
                 index, filters, return_embedding, batch_size, headers
@@ -144,9 +147,10 @@ class QdrantDocumentStore(BaseDocumentStore):
         index: Optional[str] = None,
         filters: Optional[FilterType] = None,
         return_embedding: Optional[bool] = None,
-        batch_size: int = 10_000,
+        batch_size: Optional[int] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> Generator[Document, None, None]:
+        batch_size = batch_size or self.batch_size
         index = index or self.index
         qdrant_filters = self.qdrant_filter_converter.convert(filters)
 
@@ -185,11 +189,11 @@ class QdrantDocumentStore(BaseDocumentStore):
         self,
         ids: List[str],
         index: Optional[str] = None,
-        batch_size: int = 10_000,
+        batch_size: Optional[int] = None,
         headers: Optional[Dict[str, str]] = None,
     ) -> List[Document]:
         index = index or self.index
-
+        batch_size = batch_size or self.batch_size
         documents: List[Document] = []
 
         next_offset = None
@@ -279,11 +283,12 @@ class QdrantDocumentStore(BaseDocumentStore):
         self,
         documents: Union[List[dict], List[Document]],
         index: Optional[str] = None,
-        batch_size: int = 10_000,
+        batch_size: Optional[int] = None,
         duplicate_documents: Optional[str] = None,
         headers: Optional[Dict[str, str]] = None,
     ):
         index = index or self.index
+        batch_size = batch_size or self.batch_size
         self._set_up_collection(index, self.embedding_dim, False, self.similarity)
         field_map = self._create_document_field_map()
 
